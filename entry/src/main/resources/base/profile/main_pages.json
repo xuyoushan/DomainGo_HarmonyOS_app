@@ -2,6 +2,8 @@
   "src": [
     "pages/Index",
     "pages/mine/TraceDetailView",
-    "pages/circle/PostDynamicView"
+    "pages/circle/MessageCenterView",
+    "pages/circle/PostDetailView",
+    "pages/mine/UserHomeView"
   ]
 }

@@ -1,113 +1,70 @@
-// 1. 更新数据结构，支持两种状态的资源
-interface TabItemInfo {
-  icon: Resource;       // 默认图标
-  iconActive: Resource; // 选中状态图标
-  label: string;
-  index: number;
-}
+import router from '@ohos.router';
 
 @Component
 export struct BottomNavBar {
   @Link currentIndex: number;
 
-  // 2. 严格匹配你的 media 目录文件名
-  private tabItems: TabItemInfo[] = [
-    {
-      icon: $r('app.media.ic_explore'),
-      iconActive: $r('app.media.ic_explore_active'),
-      label: '探索',
-      index: 0
-    },
-    {
-      icon: $r('app.media.ic_circle'),
-      iconActive: $r('app.media.ic_circle_active'),
-      label: '圈子',
-      index: 1
-    },
-    {
-      icon: $r('app.media.ic_guide'),
-      iconActive: $r('app.media.ic_guide_active'),
-      label: '导览',
-      index: 3
-    },
-    {
-      icon: $r('app.media.ic_mine'),
-      iconActive: $r('app.media.ic_mine_active'),
-      label: '我的',
-      index: 4
-    }
-  ];
-
   build() {
     Row() {
-      // 0: 探索
-      this.TabItem(this.tabItems[0])
-      // 1: 圈子
-      this.TabItem(this.tabItems[1])
+      // 0. 探索
+      this.TabItem(0, '探索', $r('app.media.ic_explore'), $r('app.media.ic_explore_active'))
 
-      // 2: 中间发布按钮 (保持你满意的 43vp 逻辑与动画)
+      // 1. 圈子
+      this.TabItem(1, '圈子', $r('app.media.ic_circle'), $r('app.media.ic_circle_active'))
+
+      // 2. 中间发布按钮 (保留你的样式逻辑，仅修改点击动作)
       Column() {
         Stack() {
           Circle()
             .width(43)
             .height(43)
             .fill('#007DFF')
-            .shadow(this.currentIndex === 2 ?
-              { radius: 15, color: '#80007DFF', offsetY: 4 } :
-              { radius: 5, color: '#20000000', offsetY: 2 })
+            .shadow({ radius: 5, color: '#20000000', offsetY: 2 })
 
           SymbolGlyph($r('sys.symbol.plus'))
             .fontSize(22)
             .fontColor([Color.White])
-            .rotate({ angle: this.currentIndex === 2 ? 45 : 0 })
-            .animation({ duration: 300, curve: Curve.EaseOut })
         }
-        .scale({
-          x: this.currentIndex === 2 ? 1.15 : 1.0,
-          y: this.currentIndex === 2 ? 1.15 : 1.0
-        })
-        .animation({ duration: 250, curve: Curve.Friction })
         .onClick(() => {
-          this.currentIndex = 2;
+          // 关键修改：直接跳转，不改 currentIndex，防止 UI 变乱
+          try {
+            router.pushUrl({ url: 'pages/circle/PostDynamicView' })
+          } catch (err) {
+            console.error(`跳转失败: ${err.code}`)
+          }
         })
         .margin({ bottom: 15 })
       }
       .layoutWeight(1)
 
-      // 3: 导览
-      this.TabItem(this.tabItems[2])
-      // 4: 我的
-      this.TabItem(this.tabItems[3])
+      // 3. 导览
+      this.TabItem(3, '导览', $r('app.media.ic_guide'), $r('app.media.ic_guide_active'))
+
+      // 4. 我的
+      this.TabItem(4, '我的', $r('app.media.ic_mine'), $r('app.media.ic_mine_active'))
     }
     .width('100%')
-    .height(65)
+    .height(70)
     .backgroundColor('#FFFFFF')
-    .border({ width: { top: 1 }, color: '#EEEEEE' })
+    .shadow({ radius: 10, color: '#10000000', offsetY: -2 })
   }
 
-  // 3. 修改 TabItem 渲染逻辑，从 SymbolGlyph 切换为 Image
   @Builder
-  TabItem(item: TabItemInfo) {
+  TabItem(index: number, label: string, icon: Resource, iconActive: Resource) {
     Column() {
-      // 根据 currentIndex 状态切换对应的 SVG 图片
-      Image(this.currentIndex === item.index ? item.iconActive : item.icon)
+      Image(this.currentIndex === index ? iconActive : icon)
         .width(24)
         .height(24)
-        .objectFit(ImageFit.Contain)
-      // 注意：如果是直接更换不同设计的 SVG，通常不需要 fillColor 覆盖
-      // 如果想保留全局蓝色基调，也可以取消下面这一行的注释
-      // .fillColor(this.currentIndex === item.index ? '#007DFF' : '#666666')
-
-      Text(item.label)
+      Text(label)
         .fontSize(12)
         .margin({ top: 4 })
-        .fontColor(this.currentIndex === item.index ? '#007DFF' : '#666666')
+        .fontColor(this.currentIndex === index ? '#007DFF' : '#666666')
     }
     .layoutWeight(1)
-    .height('100%')
     .justifyContent(FlexAlign.Center)
+    .height('100%')
     .onClick(() => {
-      this.currentIndex = item.index;
+      this.currentIndex = index;
     })
   }
 }

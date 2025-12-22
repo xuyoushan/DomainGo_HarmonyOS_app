@@ -1,56 +1,47 @@
+import router from '@ohos.router';
 import { ExploreView } from './explore/ExploreView';
 import { CircleView } from './circle/CircleView';
 import { GuideView } from './guide/GuideView';
 import { MineView } from './mine/MineView';
 import { BottomNavBar } from '../components/BottomNavBar';
-import router from '@ohos.router';
 
 @Entry
 @Component
 struct Index {
+  // 当前选中的索引，仅对应 0(探索), 1(圈子), 3(导览), 4(我的)
   @State currentIndex: number = 0;
 
   build() {
     Column() {
       Tabs({ index: this.currentIndex }) {
-        // Index 0: 探索
+        // Index 0
         TabContent() { ExploreView() }
 
-        // Index 1: 圈子
+        // Index 1
         TabContent() { CircleView() }
 
-        // Index 2: 发布 (中间占位层)
+        // Index 2: 对应中间的 + 号
         TabContent() {
-          // 这里放一个空组件，并通过 onAppear 触发跳转逻辑
-          Column()
-            .onAppear(() => {
-              // 当系统尝试渲染这个 Tab 时，立即执行跳转
-              try {
-                router.pushUrl({
-                  url: 'pages/circle/PostDynamicView'
-                })
-              } catch (err) {
-                console.error(`跳转失败: ${err.code}`)
-              }
-              // 跳转后，将索引改回之前的页面(比如首页或圈子)，防止用户返回时停留在这个空页面
-              this.currentIndex = 1
-            })
+          Column() { Text('发布功能') }.width('100%').height('100%').justifyContent(FlexAlign.Center)
         }
 
-        // Index 3: 导览 (索引保持不变)
+        // Index 3 (跳过 2)
         TabContent() { GuideView() }
 
-        // Index 4: 我的 (索引保持不变)
+        // Index 4
         TabContent() { MineView() }
       }
       .scrollable(false)
-      .barHeight(0)
+      .barHeight(0) // 隐藏原生TabBar
       .layoutWeight(1)
+      // .width('100%')
+      // .height('100%')
 
-      // 保持你原有的 BottomNavBar 不变
+      // 引入自定义导航栏，通过 @Link 双向绑定索引
       BottomNavBar({ currentIndex: this.$currentIndex })
     }
     .width('100%')
     .height('100%')
+    .backgroundColor('#F1F3F5')
   }
 }
