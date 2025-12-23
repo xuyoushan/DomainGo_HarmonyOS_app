@@ -27,7 +27,7 @@
       },
       {
         "name": "ohos.permission.INTERNET"
-      }
+      },
     ],
     // --- 新增权限声明结束 ---
     "abilities": [
