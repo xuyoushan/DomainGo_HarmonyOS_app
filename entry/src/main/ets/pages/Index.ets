@@ -1,3 +1,4 @@
+// Index.ets
 import router from '@ohos.router';
 import { ExploreView } from './explore/ExploreView';
 import { CircleView } from './circle/CircleView';
@@ -8,40 +9,37 @@ import { BottomNavBar } from '../components/BottomNavBar';
 @Entry
 @Component
 struct Index {
-  // 当前选中的索引，仅对应 0(探索), 1(圈子), 3(导览), 4(我的)
   @State currentIndex: number = 0;
 
   build() {
+    // 使用 Column 确保导航栏始终在屏幕最底部，不被内容遮挡
     Column() {
-      Tabs({ index: this.currentIndex }) {
-        // Index 0
+      Tabs({ index: this.currentIndex, barPosition: BarPosition.End }) {
         TabContent() { ExploreView() }
-
-        // Index 1
         TabContent() { CircleView() }
-
-        // Index 2: 对应中间的 + 号
+        // 发布按钮对应的中间占位
         TabContent() {
-          Column() { Text('发布功能') }.width('100%').height('100%').justifyContent(FlexAlign.Center)
+          Column() { Text('发布功能') }.justifyContent(FlexAlign.Center).height('100%')
         }
-
-        // Index 3 (跳过 2)
         TabContent() { GuideView() }
-
-        // Index 4
         TabContent() { MineView() }
       }
+      .layoutWeight(1) // 自动占据剩余所有空间
+      .barHeight(0)    // 隐藏原生页签
       .scrollable(false)
-      .barHeight(0) // 隐藏原生TabBar
-      .layoutWeight(1)
-      // .width('100%')
-      // .height('100%')
+      .onChange((index: number) => {
+        this.currentIndex = index;
+      })
 
-      // 引入自定义导航栏，通过 @Link 双向绑定索引
-      BottomNavBar({ currentIndex: this.$currentIndex })
+      // 自定义底部导航栏
+      // 注意：这里用 $ 符号同步 currentIndex
+      BottomNavBar({ currentIndex: $currentIndex })
+        .height(60) // 显式声明高度，解决图标遮挡
+        .width('100%')
     }
     .width('100%')
     .height('100%')
+    .padding({ left: 0, right: 0 })
     .backgroundColor('#F1F3F5')
   }
 }

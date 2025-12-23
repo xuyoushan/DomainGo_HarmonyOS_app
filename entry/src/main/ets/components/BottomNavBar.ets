@@ -12,30 +12,28 @@ export struct BottomNavBar {
       // 1. 圈子
       this.TabItem(1, '圈子', $r('app.media.ic_circle'), $r('app.media.ic_circle_active'))
 
-      // 2. 中间发布按钮 (保留你的样式逻辑，仅修改点击动作)
+      // 2. 中间发布按钮
       Column() {
         Stack() {
           Circle()
-            .width(43)
+            .width(43) // 稍微加大一点，防止 SymbolGlyph 边际裁剪
             .height(43)
             .fill('#007DFF')
-            .shadow({ radius: 5, color: '#20000000', offsetY: 2 })
+            .shadow({ radius: 10, color: '#30007DFF', offsetY: 4 })
 
           SymbolGlyph($r('sys.symbol.plus'))
-            .fontSize(22)
+            .fontSize(28)
             .fontColor([Color.White])
         }
+        // 关键修复：防止图标被切边
+        .clip(false)
         .onClick(() => {
-          // 关键修改：直接跳转，不改 currentIndex，防止 UI 变乱
-          try {
-            router.pushUrl({ url: 'pages/circle/PostDynamicView' })
-          } catch (err) {
-            console.error(`跳转失败: ${err.code}`)
-          }
+          router.pushUrl({ url: 'pages/circle/PostDynamicView' })
         })
-        .margin({ bottom: 15 })
+        .margin({ bottom: 20 }) // 向上悬浮效果
       }
       .layoutWeight(1)
+      .justifyContent(FlexAlign.Center)
 
       // 3. 导览
       this.TabItem(3, '导览', $r('app.media.ic_guide'), $r('app.media.ic_guide_active'))
@@ -44,21 +42,23 @@ export struct BottomNavBar {
       this.TabItem(4, '我的', $r('app.media.ic_mine'), $r('app.media.ic_mine_active'))
     }
     .width('100%')
-    .height(70)
+    .height(65)
     .backgroundColor('#FFFFFF')
-    .shadow({ radius: 10, color: '#10000000', offsetY: -2 })
+    .border({ width: { top: 0.5 }, color: '#EEEEEE' })
   }
 
   @Builder
   TabItem(index: number, label: string, icon: Resource, iconActive: Resource) {
     Column() {
       Image(this.currentIndex === index ? iconActive : icon)
-        .width(24)
-        .height(24)
+        .width(26)
+        .height(26)
+        // 关键修复：解决图标左侧被削去一块的问题
+        .objectFit(ImageFit.Contain)
       Text(label)
-        .fontSize(12)
+        .fontSize(10)
         .margin({ top: 4 })
-        .fontColor(this.currentIndex === index ? '#007DFF' : '#666666')
+        .fontColor(this.currentIndex === index ? '#007DFF' : '#999999')
     }
     .layoutWeight(1)
     .justifyContent(FlexAlign.Center)

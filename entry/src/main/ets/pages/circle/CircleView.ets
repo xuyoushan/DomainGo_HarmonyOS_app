@@ -2,6 +2,7 @@ import router from '@ohos.router';
 
 @Component
 export struct CircleView {
+  @StorageLink('currentCity') currentCity: string = '武汉市';
   @State currentIndex: number = 1
   @State isRefreshing: boolean = false
   // --- 大图预览相关状态 ---
@@ -14,6 +15,9 @@ export struct CircleView {
     // 使用 Stack 容器以便弹出全屏预览层
     Stack() {
       Column() {
+        Text(`正在探索: ${this.currentCity}`)
+          .fontSize(12)
+          .fontColor('#999')
         // 1. 顶部：搜索栏 + 消息中心
         this.TopSearchSection()
 

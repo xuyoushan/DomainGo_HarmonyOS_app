@@ -13,6 +13,23 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
+    // --- 新增权限声明开始 ---
+    "requestPermissions": [
+      {
+        "name": "ohos.permission.APPROXIMATELY_LOCATION",
+        "reason": "$string:location_reason", // 需要在 string.json 中定义原因，或直接写字符串
+        "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
+      },
+      {
+        "name": "ohos.permission.LOCATION",
+        "reason": "$string:location_reason",
+        "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
+      },
+      {
+        "name": "ohos.permission.INTERNET"
+      }
+    ],
+    // --- 新增权限声明结束 ---
     "abilities": [
       {
         "name": "EntryAbility",
@@ -25,12 +42,8 @@
         "exported": true,
         "skills": [
           {
-            "entities": [
-              "entity.system.home"
-            ],
-            "actions": [
-              "ohos.want.action.home"
-            ]
+            "entities": ["entity.system.home"],
+            "actions": ["ohos.want.action.home"]
           }
         ]
       }
@@ -46,7 +59,7 @@
             "name": "ohos.extension.backup",
             "resource": "$profile:backup_config"
           }
-        ],
+        ]
       }
     ]
   }
