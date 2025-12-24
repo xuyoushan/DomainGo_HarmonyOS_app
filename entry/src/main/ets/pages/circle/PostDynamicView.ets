@@ -1,10 +1,10 @@
 import router from '@ohos.router';
 import http from '@ohos.net.http';
-
-// 1. 修正导入路径：跳出 post 文件夹进入 explore 文件夹找 CityData
+import { PostItem } from '../../models/PostItem';
+// 1. 修正导入路径
 import { PROVINCE_CITY_DATA } from '../explore/CityData';
 
-// 高德地图 POI 接口返回的数据结构定义
+// 接口定义
 interface AmapPoi {
   name: string;
   address: string;
@@ -14,23 +14,19 @@ interface AmapResponse {
   status: string;
   pois: AmapPoi[];
 }
-interface PostItem {
-  userName: string;
-  avatar: Resource;
-  text: string;
-  location: string;
-  timestamp: number;
-  images: Resource[];
-}
+
 
 @Entry
 @Component
 struct PostDynamicView {
   // 基础内容状态
   @State postText: string = '';
-  // @StorageLink('selectedLocation') selectedLocation: string = ''; // 建议使用全局状态同步
-  @StorageLink('currentCity') currentCity: string = '武汉市'; // 自动联动 ExploreView 的定位
+  @StorageLink('currentCity') currentCity: string = '武汉市';
   @State selectedLocation: string = '选择位置';
+
+  // 【核心修复1】必须与 Index.ets 中的变量名保持一致
+  // 请确保 Index.ets 里也是 @StorageLink('mainIndex') currentIndex: number = 0;
+  @StorageLink('mainIndex') mainIndex: number = 0;
 
   // 社交功能状态
   @State tags: string[] = ['旅行', '美食', '探店', '打卡'];
@@ -39,22 +35,17 @@ struct PostDynamicView {
   // 搜索逻辑相关状态
   @State showLocationSearch: boolean = false;
   @State searchKey: string = '';
-  @State searchResults: AmapPoi[] = []; // 使用接口定义避免 any 报错
+  @State searchResults: AmapPoi[] = [];
   @State isSearching: boolean = false;
 
   // --- 高德地图 POI 搜索接口实现 ---
   async searchPoi(keyword: string) {
     let httpRequest = http.createHttp();
-    // 2. 使用你申请的 Web 服务 Key
     const amapKey = 'd4552bc3e20af2857f9cfd5ac95ded1d';
-
-    // 如果没有输入，默认搜索当前城市的“地标”
     let query = keyword ? keyword : '地标';
 
     try {
-      // 构造高德 REST API URL：限制在当前 currentCity 搜索
       let url = `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(query)}&city=${encodeURIComponent(this.currentCity)}&offset=20&page=1&key=${amapKey}`;
-
       this.isSearching = true;
       let response = await httpRequest.request(url, {
         method: http.RequestMethod.GET,
@@ -65,7 +56,7 @@ struct PostDynamicView {
       if (response.responseCode === 200) {
         let res = JSON.parse(response.result as string) as AmapResponse;
         if (res.status === '1' && res.pois) {
-          this.searchResults = res.pois as AmapPoi[];
+          this.searchResults = res.pois;
         }
       }
     } catch (err) {
@@ -79,7 +70,7 @@ struct PostDynamicView {
   build() {
     Stack() {
       Column() {
-        // 1. 顶部导航操作栏
+        // 1. 顶部操作栏
         Row() {
           Text('取消')
             .fontSize(16)
@@ -91,23 +82,33 @@ struct PostDynamicView {
             .backgroundColor(this.postText.length > 0 ? '#007DFF' : '#F5F5F5')
             .fontColor(this.postText.length > 0 ? '#FFFFFF' : '#BBBBBB')
             .enabled(this.postText.length > 0)
-            // 在你的发布按钮 onClick 逻辑中修改：
             .onClick(() => {
+              // 拼接逻辑：最终存入数据库的内容
+              const finalLoc = (this.selectedLocation === '选择位置' || this.selectedLocation === '所在位置')
+                ? this.currentCity
+                : `${this.currentCity} · ${this.selectedLocation}`;
+
               const newPost: PostItem = {
+                id: Date.now().toString(),
                 userName: '探险家_1',
                 avatar: $r('app.media.ic_mine_active'),
                 text: this.postText,
-                // 关键：如果用户选了位置就传位置，没选就为空
-                location: this.selectedLocation !== '选择位置' ? this.selectedLocation : '',
-                timestamp: Date.now(), // 记录当前发布时刻
-                images: [$r('app.media.map_china_tech')] // 你的图片数组
+                location: finalLoc,
+                timestamp: Date.now(),
+                images: [$r('app.media.map_china_tech')],
+                isLiked: false,
+                likeCount: 0,
+                isCollected: false,
+                comments: []
               };
 
-              // 1. 获取现有动态列表
-              let posts = AppStorage.Get<PostItem[]>('globalPostList') || [];              // 2. 将新动态插入到第一位
+              // 获取并更新全局列表
+              let posts = AppStorage.Get<PostItem[]>('globalPostList') || [];
               posts.unshift(newPost);
-              // 3. 更新存储
               AppStorage.SetOrCreate('globalPostList', posts);
+
+              // 【核心修复2】强制切换 Tab 到“圈子”(Index 1)
+              this.mainIndex = 1;
 
               router.back();
             })
@@ -127,23 +128,27 @@ struct PostDynamicView {
               this.AddImageBtn()
             }.width('100%').margin({ top: 10 })
 
-            // 4. 功能配置列表
+            // 4. 功能列表
             List() {
-              // 位置选择行
               ListItem() {
-                this.MenuRow($r('sys.symbol.mappin_and_rectangle'), '所在位置',
-                  this.selectedLocation === '选择位置' ? this.currentCity : this.selectedLocation, true)
+                this.MenuRow(
+                  $r('sys.symbol.mappin_and_rectangle'),
+                  '所在位置',
+                  // (this.selectedLocation === '选择位置' || this.selectedLocation === '所在位置')
+                  this.selectedLocation//本次修改地方
+                    ? this.currentCity
+                    : `${this.currentCity} · ${this.selectedLocation}`,
+                  true
+                )
               }.onClick(() => {
                 this.showLocationSearch = true;
-                this.searchPoi(''); // 初始进入时搜索默认推荐
+                this.searchPoi('');
               })
 
-              // 提醒谁看 (@某人)
               ListItem() {
                 this.MenuRow($r('sys.symbol.person_crop_circle_fill'), '提醒谁看', '未选择', true)
               }
 
-              // 标签选择区
               ListItem() {
                 Column() {
                   this.MenuRow($r('sys.symbol.label'), '添加标签', '', false)
@@ -166,7 +171,6 @@ struct PostDynamicView {
                 }.padding({ bottom: 15 })
               }
 
-              // 权限设置
               ListItem() {
                 this.MenuRow($r('sys.symbol.lock_fill'), '谁可以看', '公开', true)
               }
@@ -178,7 +182,7 @@ struct PostDynamicView {
       }
       .width('100%').height('100%').backgroundColor('#FFFFFF')
 
-      // 5. 真实位置搜索半屏弹窗层
+      // 5. 地点搜索半屏弹窗
       if (this.showLocationSearch) {
         Column() {
           Row() {
@@ -191,7 +195,7 @@ struct PostDynamicView {
             .width('92%').margin({ bottom: 10 })
             .onChange(v => {
               this.searchKey = v;
-              this.searchPoi(v); // 监听输入，实时调用高德 API
+              this.searchPoi(v);
             })
 
           List() {
@@ -202,7 +206,9 @@ struct PostDynamicView {
             ListItem() {
               Text('不显示位置').fontColor('#007DFF').fontSize(16).padding(15)
             }.onClick(() => {
-              this.selectedLocation = '所在位置';
+              // this.selectedLocation = '所在位置';
+              this.selectedLocation = '';//本次修改地方
+              // this.selectedLocation = item.name;
               this.showLocationSearch = false;
             })
 

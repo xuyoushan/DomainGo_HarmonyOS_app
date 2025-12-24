@@ -44,3 +44,31 @@
 增加随意切换全国所有地级市并获取天气的功能
 完善了发布页面，并且发布后圈子会实时更新内容。发布时可以选择当前定位城市的地址，发布的帖子也会显示此地址。
 
+2025-12-25-0：18
+
+1.数据模型标准化 (Unified Data Model)
+
+在 src/main/ets/models/PostItem.ets 中确立了全项目统一的 PostItem 和 CommentItem 接口。
+
+2.删除了各个视图组件（CircleView, MineView, PostDetailView）中重复定义的本地接口，彻底解决了“接口已在本地声明但未导出”的编译冲突报错。
+
+3.发布功能稳定性修复
+
+解决了首次点击发布会跳转到“探索”页的问题，重构了 PostDynamicView 的发布逻辑，确保 newPost 对象包含所有必填字段（id, isLiked, likeCount, isCollected, comments）。
+解决了发布新动态时因缺少社交状态字段而导致的 APP 运行时崩溃问题。
+
+4.圈子列表渲染与交互优化
+
+修正了 CircleView 的 ForEach 渲染器，添加了 item 存在性校验，防止在搜索过滤时出现空指针报错。
+优化了列表的 Key 生成逻辑，确保在点赞和收藏状态切换时 UI 能立即触发精准刷新。
+
+5.时间显示“心跳”刷新机制
+
+在 CircleView 中引入了 timeRefreshTicker 状态变量和 setInterval 定时器（每 60 秒触发一次）。
+解决了帖子时间显示静态不跳变的问题，现在发布时间能随现实时间自动从“刚刚”变为“X分钟前”。
+完善了 getRelativeTime 逻辑，修复了“0分钟前”的显示 Bug，不满 1 分钟统一显示为“刚刚”。
+
+6.详情页与评论功能对接
+修正了 PostDetailView 的导入路径和类型断言，确保详情页能正确接收路由参数并识别 CommentItem 类型。
+实现了详情页点赞、收藏状态与全局列表数据的实时同步。
+

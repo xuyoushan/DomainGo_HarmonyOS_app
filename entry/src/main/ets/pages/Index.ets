@@ -9,8 +9,8 @@ import { BottomNavBar } from '../components/BottomNavBar';
 @Entry
 @Component
 struct Index {
-  @State currentIndex: number = 0;
-
+  // @State currentIndex: number = 0;
+  @StorageLink('mainIndex') currentIndex: number = 0;
   build() {
     // 使用 Column 确保导航栏始终在屏幕最底部，不被内容遮挡
     Column() {
@@ -33,6 +33,7 @@ struct Index {
 
       // 自定义底部导航栏
       // 注意：这里用 $ 符号同步 currentIndex
+      // BottomNavBar({ currentIndex: $currentIndex })
       BottomNavBar({ currentIndex: $currentIndex })
         .height(60) // 显式声明高度，解决图标遮挡
         .width('100%')

@@ -1,12 +1,18 @@
 import router from '@ohos.router';
+import promptAction from '@ohos.promptAction'; // 必须导入
+// 导入 PostItem 接口以便使用
+import { PostItem } from '../../models/PostItem';
 @Component
 export struct MineView {
   scroller: Scroller = new Scroller()
 
+  // 【功能4实现】：通过 StorageLink 绑定全局浏览历史，实现数字实时更新
+  @StorageLink('browseHistory') history: PostItem[] = [];
+
   build() {
     Scroll(this.scroller) {
       Column() {
-        // 1. 头部个人信息区
+        // 1. 头部个人信息区（保持你的渐变和样式）
         Stack({ alignContent: Alignment.Bottom }) {
           Rect()
             .width('100%')
@@ -40,10 +46,29 @@ export struct MineView {
         }
         .width('100%')
 
-        // 2. 基础功能列表
+        // 2. 基础功能列表（重绘：加入浏览历史数量显示）
         List() {
           ListItem() { this.MenuItem('我的足迹', $r('sys.symbol.map')) }
-          ListItem() { this.MenuItem('我的收藏', $r('sys.symbol.star')) }
+
+          ListItem() { this.MenuItem('我的收藏', $r('sys.symbol.star_fill')) }
+          .onClick(() => { /* 跳转收藏页 */ })
+
+          // 【功能4修改】：增加浏览历史点击和数量展示
+          ListItem() {
+            Row() {
+              this.MenuItem('浏览历史', $r('sys.symbol.clock_fill'))
+              // 显示当前历史记录的数量
+              Text(this.history.length.toString())
+                .fontSize(14)
+                .fontColor('#999999')
+                .margin({ right: 10 })
+            }.width('100%')
+          }
+          .onClick(() => {
+            // 这里可以跳转到专门的历史记录列表页
+            promptAction.showToast({ message: '跳转至浏览历史' })
+          })
+
           ListItem() { this.MenuItem('发布记录', $r('sys.symbol.square_and_pencil')) }
           ListItem() { this.MenuItem('系统设置', $r('sys.symbol.gearshape')) }
         }
@@ -55,7 +80,7 @@ export struct MineView {
         .divider({ strokeWidth: 1, color: '#F1F3F5', startMargin: 35 })
         .shadow({ radius: 15, color: '#15000000', offsetY: 8 })
 
-        // 3. 我的勋章模块
+        // 3. 我的勋章模块（完整保留）
         Column() {
           Row() {
             Text('我的勋章')
@@ -81,7 +106,7 @@ export struct MineView {
           .scrollBar(BarState.Off)
         }
 
-        // 4. 足迹地图卡片
+        // 4. 足迹地图卡片（完整保留）
         Column() {
           Text('足迹地图')
             .fontSize(18)
@@ -107,7 +132,6 @@ export struct MineView {
               })
 
             Row() {
-              // 修复报错 1：alignItems 改为链式调用
               Column() {
                 Text('我的寻域足迹')
                   .fontColor('#FFFFFF')
@@ -125,12 +149,11 @@ export struct MineView {
                   .color('#007DFF')
                   .margin({ top: 15 })
               }
-              .alignItems(HorizontalAlign.Start) // 正确的写法
+              .alignItems(HorizontalAlign.Start)
               .margin({ left: 20 })
 
               Blank()
 
-              // 修复报错 2：改为正确的系统图标名称
               SymbolGlyph($r('sys.symbol.mappin_and_rectangle'))
                 .fontSize(45)
                 .fontColor(['#40FFFFFF'])
@@ -141,14 +164,10 @@ export struct MineView {
           .width('92%')
           .height(180)
           .shadow({ radius: 20, color: '#25000000', offsetY: 10 })
-          // 在 MineView.ets 的足迹地图卡片 onClick 处修改
           .onClick(() => {
             try {
-              router.pushUrl({
-                url: 'pages/mine/TraceDetailView'
-              }, router.RouterMode.Standard)
+              router.pushUrl({ url: 'pages/mine/TraceDetailView' })
             } catch (err) {
-              // 如果路径不对，这里会打印错误码和信息
               console.error(`pushUrl failed, code is ${err.code}, message is ${err.message}`);
             }
           })
