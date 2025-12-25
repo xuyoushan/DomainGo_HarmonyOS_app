@@ -1,18 +1,20 @@
+// MineView.ets
 import router from '@ohos.router';
-import promptAction from '@ohos.promptAction'; // 必须导入
-// 导入 PostItem 接口以便使用
+import promptAction from '@ohos.promptAction';
 import { PostItem } from '../../models/PostItem';
+
 @Component
 export struct MineView {
   scroller: Scroller = new Scroller()
-
-  // 【功能4实现】：通过 StorageLink 绑定全局浏览历史，实现数字实时更新
+  // 这里的键名必须与 RegisterView 中的 PersistentStorage 键名完全一致
+  @StorageLink('userName') userName: string = '点击注册/登录';
+  @StorageLink('isLoggedIn') isLoggedIn: boolean = false;
   @StorageLink('browseHistory') history: PostItem[] = [];
 
   build() {
     Scroll(this.scroller) {
       Column() {
-        // 1. 头部个人信息区（保持你的渐变和样式）
+        // 1. 头部个人信息区
         Stack({ alignContent: Alignment.Bottom }) {
           Rect()
             .width('100%')
@@ -23,6 +25,7 @@ export struct MineView {
               colors: [['#007DFF', 0.0], ['#005BB7', 1.0]]
             })
 
+          // 【已修复逻辑】：点击头像或名字跳转注册，登录后显示真实名字
           Column() {
             Image($r('app.media.ic_mine_active'))
               .width(85)
@@ -31,12 +34,22 @@ export struct MineView {
               .border({ width: 4, color: '#FFFFFF' })
               .backgroundColor('#FFFFFF')
               .objectFit(ImageFit.Contain)
+              .onClick(() => {
+                if (!this.isLoggedIn) {
+                  router.pushUrl({ url: 'pages/mine/RegisterView' })
+                }
+              })
 
-            Text('DomainGo 用户')
+            Text(this.isLoggedIn ? this.userName : '点击注册/登录')
               .fontSize(22)
               .fontWeight(FontWeight.Bold)
               .fontColor('#FFFFFF')
               .margin({ top: 12 })
+              .onClick(() => {
+                if (!this.isLoggedIn) {
+                  router.pushUrl({ url: 'pages/mine/RegisterView' })
+                }
+              })
 
             Text('探索足迹：128公里 | 勋章：5枚')
               .fontSize(14)
@@ -46,18 +59,14 @@ export struct MineView {
         }
         .width('100%')
 
-        // 2. 基础功能列表（重绘：加入浏览历史数量显示）
+        // 2. 基础功能列表
         List() {
           ListItem() { this.MenuItem('我的足迹', $r('sys.symbol.map')) }
-
           ListItem() { this.MenuItem('我的收藏', $r('sys.symbol.star_fill')) }
-          .onClick(() => { /* 跳转收藏页 */ })
 
-          // 【功能4修改】：增加浏览历史点击和数量展示
           ListItem() {
             Row() {
               this.MenuItem('浏览历史', $r('sys.symbol.clock_fill'))
-              // 显示当前历史记录的数量
               Text(this.history.length.toString())
                 .fontSize(14)
                 .fontColor('#999999')
@@ -65,7 +74,6 @@ export struct MineView {
             }.width('100%')
           }
           .onClick(() => {
-            // 这里可以跳转到专门的历史记录列表页
             promptAction.showToast({ message: '跳转至浏览历史' })
           })
 
@@ -80,7 +88,7 @@ export struct MineView {
         .divider({ strokeWidth: 1, color: '#F1F3F5', startMargin: 35 })
         .shadow({ radius: 15, color: '#15000000', offsetY: 8 })
 
-        // 3. 我的勋章模块（完整保留）
+        // 3. 我的勋章模块
         Column() {
           Row() {
             Text('我的勋章')
@@ -106,7 +114,7 @@ export struct MineView {
           .scrollBar(BarState.Off)
         }
 
-        // 4. 足迹地图卡片（完整保留）
+        // 4. 足迹地图卡片
         Column() {
           Text('足迹地图')
             .fontSize(18)
@@ -165,21 +173,24 @@ export struct MineView {
           .height(180)
           .shadow({ radius: 20, color: '#25000000', offsetY: 10 })
           .onClick(() => {
-            try {
-              router.pushUrl({ url: 'pages/mine/TraceDetailView' })
-            } catch (err) {
-              console.error(`pushUrl failed, code is ${err.code}, message is ${err.message}`);
-            }
+            router.pushUrl({ url: 'pages/mine/TraceDetailView' })
           })
         }
 
+        // 5. 底部按钮区
         Button('退出登录')
           .width('92%')
           .height(50)
-          .margin({ top: 40, bottom: 40 })
+          .margin({ top: 40, bottom: 20 })
           .backgroundColor('#FFF1F3')
           .fontColor('#FF4D4F')
           .borderRadius(12)
+          .onClick(() => {
+            // 退出登录逻辑：重置全局变量
+            AppStorage.setOrCreate('isLoggedIn', false);
+            AppStorage.setOrCreate('userName', '点击注册/登录');
+            promptAction.showToast({ message: '已退出登录' });
+          })
 
         Blank().height(80)
       }

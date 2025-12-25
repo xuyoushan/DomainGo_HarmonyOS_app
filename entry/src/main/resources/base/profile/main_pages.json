@@ -5,6 +5,7 @@
     "pages/circle/MessageCenterView",
     "pages/circle/PostDetailView",
     "pages/mine/UserHomeView",
-    "pages/circle/PostDynamicView"
+    "pages/circle/PostDynamicView",
+    "pages/mine/RegisterView"
   ]
 }
