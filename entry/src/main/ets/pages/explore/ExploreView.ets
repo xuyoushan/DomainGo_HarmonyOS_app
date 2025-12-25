@@ -9,6 +9,29 @@ interface WeatherResult { now: WeatherNow; }
 interface WeatherResponse { results: WeatherResult[]; }
 interface BannerInfo { title: string; color: string; }
 
+/**
+ * ===============================
+ * 城市 → 轮播图数据映射（新增）
+ * ===============================
+ */
+const CITY_BANNER_DATA: Record<string, BannerInfo[]> = {
+  "武汉市": [
+    { title: '黄鹤楼 · 千古名胜', color: '#FF6B6B' },
+    { title: '热干面 · 武汉早餐灵魂', color: '#FFD93D' },
+    { title: '长江大桥 · 万里长江第一桥', color: '#4ECDC4' }
+  ],
+  "青岛市": [
+    { title: '青岛啤酒 · 世界知名', color: '#74B9FF' },
+    { title: '碧海蓝天 · 海滨城市', color: '#00B894' },
+    { title: '海鲜盛宴 · 鲜美直达', color: '#FAB1A0' }
+  ],
+  "北京市": [
+    { title: '故宫 · 紫禁城', color: '#E17055' },
+    { title: '长城 · 万里雄关', color: '#636E72' },
+    { title: '天安门 · 国家象征', color: '#D63031' }
+  ]
+};
+
 @Component
 export struct ExploreView {
   @StorageLink('currentCity') currentCity: string = '武汉市';
@@ -16,6 +39,7 @@ export struct ExploreView {
   @State weatherText: string = '阴';
   @State searchText: string = '';
 
+  // 初始值仍然保留武汉（不影响原逻辑）
   @State bannerList: BannerInfo[] = [
     { title: '武汉黄鹤楼 · 千古名胜', color: '#FF6B6B' },
     { title: '东湖绿道 · 最美骑行地', color: '#4ECDC4' },
@@ -26,13 +50,32 @@ export struct ExploreView {
 
   aboutToAppear() {
     this.initLocation();
+    // 进入页面时同步一次轮播图
+    this.updateBannerByCity(this.currentCity);
+  }
+
+  /**
+   * ===============================
+   * 根据城市更新轮播图（新增）
+   * ===============================
+   */
+  updateBannerByCity(city: string) {
+    if (CITY_BANNER_DATA[city]) {
+      this.bannerList = CITY_BANNER_DATA[city];
+    } else {
+      // 未配置城市，使用兜底数据
+      this.bannerList = [
+        { title: `${city} · 城市风光`, color: '#DCDDE1' },
+        { title: '当地美食', color: '#B2BEC3' },
+        { title: '热门打卡地', color: '#A4B0BE' }
+      ];
+    }
   }
 
   // --- 城市选择核心逻辑：省市二级联动 ---
   showCityPicker() {
     let provinces = Object.keys(PROVINCE_CITY_DATA);
 
-    // 1. 弹出省份选择器
     TextPickerDialog.show({
       range: provinces,
       selected: 0,
@@ -40,7 +83,6 @@ export struct ExploreView {
         let selectedProvince = pResult.value as string;
         let cities = PROVINCE_CITY_DATA[selectedProvince];
 
-        // 2. 紧接着弹出该省下的地级市选择器
         setTimeout(() => {
           TextPickerDialog.show({
             range: cities,
@@ -48,15 +90,16 @@ export struct ExploreView {
             onAccept: (cResult: TextPickerResult) => {
               let selectedCity = cResult.value as string;
               this.currentCity = selectedCity;
+              this.updateBannerByCity(selectedCity); // ★ 新增
               this.fetchRealWeather(selectedCity);
             }
           })
-        }, 300) // 延迟一小会儿弹出，避免动画冲突
+        }, 300)
       }
     })
   }
 
-  // --- 天气获取逻辑 (已经为你修正过 URL 拼接) ---
+  // --- 天气获取逻辑 ---
   async fetchRealWeather(city: string) {
     let httpRequest = http.createHttp();
     let apiKey = 'S7zKUHHMAcavQT0_R';
@@ -89,9 +132,11 @@ export struct ExploreView {
       const res = await LocationManager.getRealCity();
       if (res) {
         this.currentCity = res;
+        this.updateBannerByCity(res); // ★ 新增
         this.fetchRealWeather(res);
       }
     } else {
+      this.updateBannerByCity(this.currentCity); // ★ 新增
       this.fetchRealWeather(this.currentCity);
     }
   }
@@ -105,7 +150,6 @@ export struct ExploreView {
 
   build() {
     Column() {
-      // 1. 顶部搜索栏
       Row() {
         Row() {
           SymbolGlyph($r('sys.symbol.location_north_up_right_and_circle_dotted_fill')).fontSize(18).fontColor(['#007DFF'])
@@ -132,7 +176,6 @@ export struct ExploreView {
 
       Scroll() {
         Column({ space: 25 }) {
-          // 2. 轮播图
           Swiper() {
             ForEach(this.bannerList, (item: BannerInfo) => {
               this.BannerItem(item.title, item.color)
@@ -140,7 +183,6 @@ export struct ExploreView {
           }
           .width('100%').height(180).autoPlay(true).borderRadius(12)
 
-          // 3. 功能矩阵
           Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
             this.CategoryIcon('景点', $r('sys.symbol.map'), '#4ECDC4')
             this.CategoryIcon('美食', $r('sys.symbol.fork_knife'), '#FF6B6B')
@@ -153,7 +195,6 @@ export struct ExploreView {
           }
           .width('100%')
 
-          // 4. 精品路线
           Column() {
             this.SectionHeader('寻域精品路线')
             this.RouteCard('两江四岸灯光秀之旅', '长江大桥 - 江滩 - 轮渡', '5.2km')
@@ -174,7 +215,8 @@ export struct ExploreView {
     Stack({ alignContent: Alignment.BottomStart }) {
       Rect().width('100%').height('100%').fill(color).borderRadius(12).opacity(0.2)
       Column() {
-        Text('当地热门').fontSize(10).fontColor('#FFFFFF').backgroundColor('#007DFF').padding({left:6, right:6, top:2, bottom:2}).borderRadius(4)
+        Text('当地热门').fontSize(10).fontColor('#FFFFFF').backgroundColor('#007DFF')
+          .padding({ left: 6, right: 6, top: 2, bottom: 2 }).borderRadius(4)
         Text(title).fontSize(18).fontWeight(FontWeight.Bold).fontColor('#333').margin({ top: 8 })
       }.margin(20).alignItems(HorizontalAlign.Start)
     }
@@ -201,10 +243,10 @@ export struct ExploreView {
   @Builder RouteCard(title: string, desc: string, distance: string) {
     Row() {
       Column() {
-        Circle({width:6, height:6}).fill('#007DFF')
+        Circle({ width: 6, height: 6 }).fill('#007DFF')
         Rect().width(1).height(15).fill('#D8D8D8')
-        Circle({width:6, height:6}).fill(Color.Transparent).stroke('#007DFF').strokeWidth(1)
-      }.margin({right: 12})
+        Circle({ width: 6, height: 6 }).fill(Color.Transparent).stroke('#007DFF').strokeWidth(1)
+      }.margin({ right: 12 })
       Column() {
         Text(title).fontSize(15).fontWeight(FontWeight.Bold)
         Text(desc).fontSize(12).fontColor('#666').margin({ top: 4 })
