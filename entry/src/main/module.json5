@@ -28,6 +28,11 @@
       {
         "name": "ohos.permission.INTERNET"
       },
+      {
+        "name": "ohos.permission.READ_IMAGEVIDEO",
+        "reason": "$string:image_reason", // 需要在 string.json 中定义原因，或直接写字符串
+        "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
+      }
     ],
     // --- 新增权限声明结束 ---
     "abilities": [
@@ -48,6 +53,7 @@
         ]
       }
     ],
+
     "extensionAbilities": [
       {
         "name": "EntryBackupAbility",

@@ -1,6 +1,6 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
-import { PostItem, CommentItem } from '../../models/PostItem'; // 路径请确保正确
+import { PostItem, CommentItem } from '../../models/PostItem';
 
 @Component
 export struct CircleView {
@@ -10,21 +10,21 @@ export struct CircleView {
   @State currentIndex: number = 1
   @State isRefreshing: boolean = false
   @State showBigImage: boolean = false
-  @State currentPreviewImg: Resource = $r('app.media.map_china_tech')
+  @State currentPreviewImg: ResourceStr = $r('app.media.map_china_tech')
   @State searchKey: string = ''
 
-  // 【新增功能】时间强制刷新哨兵
+  // 【功能保留】时间强制刷新哨兵
   @State timeRefreshTicker: number = 0;
   private timerId: number = -1;
 
   private controller: TabsController = new TabsController()
 
-  // 【优化】更精准的时间转换逻辑
+  // 【功能保留】更精准的时间转换逻辑
   getRelativeTime(time: number, ticker: number): string {
     const now = Date.now();
     const diff = (now - time) / 1000;
     if (diff < 60) {
-      return '刚刚'; // 只要不满 60 秒，全是“刚刚”
+      return '刚刚';
     } else if (diff < 3600) {
       return `${Math.floor(diff / 60)}分钟前`;
     } else if (diff < 86400) {
@@ -34,11 +34,11 @@ export struct CircleView {
     return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
   }
 
-  // 【新增】生命周期管理心跳定时器
+  // 【功能保留】生命周期管理心跳定时器
   aboutToAppear() {
     this.timerId = setInterval(() => {
       this.timeRefreshTicker++;
-    }, 60000); // 每分钟刷新一次
+    }, 60000);
   }
 
   aboutToDisappear() {
@@ -47,21 +47,21 @@ export struct CircleView {
     }
   }
 
-  // 浏览历史记录逻辑（完整保留）
+  // 【功能保留】浏览历史记录逻辑
   addToHistory(post: PostItem) {
     let history = AppStorage.Get<PostItem[]>('browseHistory') || [];
     history = [post, ...history.filter(item => item.id !== post.id)];
     AppStorage.SetOrCreate('browseHistory', history.slice(0, 50));
   }
 
-  // 点赞切换（完整保留）
+  // 【功能保留】点赞切换
   toggleLike(post: PostItem) {
     post.isLiked = !post.isLiked;
     post.likeCount += post.isLiked ? 1 : -1;
     AppStorage.SetOrCreate('globalPostList', [...this.globalPosts]);
   }
 
-  // 收藏切换（完整保留）
+  // 【功能保留】收藏切换
   toggleCollect(post: PostItem) {
     post.isCollected = !post.isCollected;
     AppStorage.SetOrCreate('globalPostList', [...this.globalPosts]);
@@ -73,7 +73,7 @@ export struct CircleView {
   build() {
     Stack() {
       Column() {
-        // 顶部搜索区域（完整保留）
+        // 【功能保留】顶部搜索区域
         Row() {
           Search({ placeholder: '搜索动态...', value: this.searchKey })
             .layoutWeight(1)
@@ -91,7 +91,7 @@ export struct CircleView {
         .width('100%')
         .padding(15)
 
-        // 分类页签（关注/推荐/同城 完整保留）
+        // 【功能保留】分类页签
         Tabs({ barPosition: BarPosition.Start, controller: this.controller, index: this.currentIndex }) {
           TabContent() { this.SocialContentList() }.tabBar(this.TabBuilder('关注', 0))
           TabContent() { this.SocialContentList() }.tabBar(this.TabBuilder('推荐', 1))
@@ -103,7 +103,7 @@ export struct CircleView {
       .width('100%')
       .height('100%')
 
-      // 大图预览层（完整保留）
+      // 【功能保留】大图预览层
       if (this.showBigImage) {
         Stack() {
           Rect()
@@ -153,7 +153,6 @@ export struct CircleView {
               }
             }
           },
-          // 修正 Key 生成器：加入 timeRefreshTicker 确保时间跳动时 UI 刷新
           (item: PostItem) => item.id + String(item.isLiked) + String(item.isCollected) + this.timeRefreshTicker.toString()
         )
       }
@@ -169,7 +168,7 @@ export struct CircleView {
   @Builder
   SocialCard(data: PostItem) {
     Column() {
-      // 1. 头像与用户信息
+      // 1. 头像与用户信息 (保留 timeRefreshTicker 联动)
       Row() {
         Image(data.avatar)
           .width(45)
@@ -178,7 +177,6 @@ export struct CircleView {
 
         Column() {
           Text(data.userName).fontSize(16).fontWeight(FontWeight.Medium)
-          // 【核心修改】传入 timeRefreshTicker 触发刷新
           Text(`${this.getRelativeTime(data.timestamp, this.timeRefreshTicker)} · ${data.location || this.currentCity}`)
             .fontSize(12)
             .fontColor('#999999')
@@ -188,38 +186,40 @@ export struct CircleView {
         .margin({ left: 10 })
       }
       .width('100%')
-      .padding({ left: 15, right: 15, top: 15 })
+      .padding({ left: 15, right: 15, top: 15, bottom: 10 })
 
-      // 2. 动态图片（保留了你原来的单图逻辑）
+      // 【核心修复：图片展示逻辑】
+      // 不再使用 ForEach 循环所有图片，而是只显示 data.images[0]
       if (data.images && data.images.length > 0) {
         Image(data.images[0])
           .width('92%')
-          .height(180)
-          .borderRadius(12)
-          .margin({ top: 10 })
+          .height(200) // 设定统一的封面高度
           .objectFit(ImageFit.Cover)
+          .borderRadius(12)
+          .margin({ bottom: 10 })
           .onClick(() => {
+            // 点击封面图查看大图
             this.currentPreviewImg = data.images[0]
             this.showBigImage = true
           })
       }
 
-      // 3. 动态文本与跳转
+      // 3. 动态文本与跳转 (保留历史记录逻辑)
       Text(data.text)
         .fontSize(15)
         .fontColor('#333')
         .lineHeight(22)
         .width('100%')
-        .padding(15)
+        .padding({ left: 15, right: 15, bottom: 15 })
         .onClick(() => {
-          this.addToHistory(data)
+          this.addToHistory(data) // 历史记录功能
           router.pushUrl({
             url: 'pages/circle/PostDetailView',
             params: { postData: data }
           })
         })
 
-      // 4. 底部交互区（点赞、收藏、评论 完整保留）
+      // 4. 底部交互区 (点赞、收藏、评论 100% 完整保留)
       Row() {
         Row() {
           this.InteractionIcon(

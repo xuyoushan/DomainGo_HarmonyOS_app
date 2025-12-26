@@ -1,9 +1,9 @@
-// src/main/ets/models/PostItem.ets
-
-// 必须有这个 export，PostDetailView 才能认出来
+// models/PostItem.ts
 export interface CommentItem {
   userName: string;
+  avatar: Resource;
   content: string;
+  timestamp: number; // 确保有这个
 }
 
 export interface PostItem {
@@ -13,9 +13,10 @@ export interface PostItem {
   text: string;
   location: string;
   timestamp: number;
-  images: Resource[];
+  images: (Resource | string)[]; // 核心：允许 Resource 和 string 混用
   isLiked: boolean;
   likeCount: number;
   isCollected: boolean;
-  comments: CommentItem[]; // 确保这里引用的是上面的接口
+  comments: CommentItem[];
+  tags?: string[]; // 别忘了发布页需要的这个标签字段
 }
