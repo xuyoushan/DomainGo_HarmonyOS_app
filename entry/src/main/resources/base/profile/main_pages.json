@@ -6,6 +6,8 @@
     "pages/circle/PostDetailView",
     "pages/mine/UserHomeView",
     "pages/circle/PostDynamicView",
-    "pages/mine/RegisterView"
+    "pages/mine/RegisterView",
+    "pages/AllFunctionsView",
+    "pages/DataDetailView"
   ]
 }
