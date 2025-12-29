@@ -1,6 +1,7 @@
 {
   "src": [
     "pages/Index",
+    "pages/guide/GuideView",
     "pages/mine/TraceDetailView",
     "pages/circle/MessageCenterView",
     "pages/circle/PostDetailView",

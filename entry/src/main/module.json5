@@ -10,6 +10,12 @@
       "2in1",
       "wearable"
     ],
+    "metadata": [
+      {
+        "name": "client_id",
+        "value": "1851569703600833664"
+      }
+    ],
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
@@ -32,7 +38,8 @@
         "name": "ohos.permission.READ_IMAGEVIDEO",
         "reason": "$string:image_reason", // 需要在 string.json 中定义原因，或直接写字符串
         "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
-      }
+      },
+      { "name": "ohos.permission.GET_NETWORK_INFO" }
     ],
     // --- 新增权限声明结束 ---
     "abilities": [

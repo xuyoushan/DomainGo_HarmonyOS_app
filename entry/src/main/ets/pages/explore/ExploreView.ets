@@ -3,23 +3,20 @@ import { common } from '@kit.AbilityKit';
 import http from '@ohos.net.http';
 import { PROVINCE_CITY_DATA } from './CityData';
 import { CITY_BANNER_CONFIG, CityBanner } from './CityBannerData';
-import { promptAction, router } from '@kit.ArkUI'; // 引入 router
+import { promptAction, router } from '@kit.ArkUI';
+
+// --- 关键修改：直接引入数据和接口，删掉首页重复的 TravelRoute 定义 ---
+import { CITY_ROUTES, TravelRoute, ScenicSpot } from '../../models/RouteData';
 
 // --- 接口定义 (完整保留) ---
 interface WeatherNow { temperature: string; text: string; }
 interface WeatherResult { now: WeatherNow; }
 interface WeatherResponse { results: WeatherResult[]; }
 interface BannerInfo { title: string; color: string; }
-interface TravelRoute { title: string; desc: string; distance: string; }
 
 // 定义话题接口
 interface HotTopic { title: string; color: string; count: string; }
 
-/**
- * ===============================
- * 城市 → 轮播图数据映射（完整保留）
- * ===============================
- */
 const CITY_BANNER_DATA: Record<string, BannerInfo[]> = {
   "武汉市": [
     { title: '黄鹤楼 · 千古名胜', color: '#FF6B6B' },
@@ -38,19 +35,6 @@ const CITY_BANNER_DATA: Record<string, BannerInfo[]> = {
   ]
 };
 
-// 【功能保留】城市路线数据
-const CITY_ROUTES: Record<string, TravelRoute[]> = {
-  "武汉市": [
-    { title: '两江四岸灯光秀之旅', desc: '长江大桥 - 江滩 - 轮渡', distance: '5.2km' },
-    { title: '知音文化深度游', desc: '古琴台 - 晴川阁 - 龟山', distance: '4.8km' },
-    { title: '东湖绿道骑行线', desc: '梨园 - 磨山 - 凌波门', distance: '12.0km' }
-  ],
-  "北京市": [
-    { title: '中轴线历史之旅', desc: '故宫 - 景山 - 钟鼓楼', distance: '6.5km' },
-    { title: '皇家园林漫步', desc: '颐和园 - 圆明园', distance: '8.2km' }
-  ]
-};
-
 @Component
 export struct ExploreView {
   @StorageLink('currentCity') currentCity: string = '武汉市';
@@ -58,14 +42,12 @@ export struct ExploreView {
   @State weatherText: string = '阴';
   @State searchText: string = '';
 
-  // 【功能保留】原有的 Banner 逻辑兜底
   @State bannerList: BannerInfo[] = [
     { title: '武汉黄鹤楼 · 千古名胜', color: '#FF6B6B' },
     { title: '东湖绿道 · 最美骑行地', color: '#4ECDC4' },
     { title: '湖北省博物馆 · 越王勾践剑', color: '#45B7D1' }
   ];
 
-  // 热门讨论数据（新增，用于充实页面）
   @State hotTopics: HotTopic[] = [
     { title: '武汉樱花地图', color: '#FFEAA7', count: '3.5w' },
     { title: '老汉口建筑寻踪', color: '#81ECEC', count: '1.2w' },
@@ -80,7 +62,7 @@ export struct ExploreView {
     this.updateBannerByCity(this.currentCity);
   }
 
-  // --- 逻辑区：完整保留你的所有方法 ---
+  // --- 所有原有方法完整保留 ---
   updateBannerByCity(city: string) {
     if (CITY_BANNER_DATA[city]) {
       this.bannerList = CITY_BANNER_DATA[city];
@@ -145,7 +127,6 @@ export struct ExploreView {
     if (isAuth) {
       const res = await LocationManager.getRealCity();
       if (res) {
-        // 【核心修复】同步更新全局存储
         AppStorage.setOrCreate('currentCity', res);
         this.currentCity = res;
         this.updateBannerByCity(res);
@@ -166,7 +147,7 @@ export struct ExploreView {
 
   build() {
     Column() {
-      // --- 1. 顶部状态栏 ---
+      // --- 顶部状态栏 ---
       Row() {
         Row() {
           SymbolGlyph($r('sys.symbol.location_north_up_right_and_circle_dotted_fill')).fontSize(18).fontColor(['#007DFF'])
@@ -185,7 +166,7 @@ export struct ExploreView {
 
       Scroll() {
         Column({ space: 20 }) {
-          // --- 2. 轮播图 ---
+          // --- 轮播图 ---
           Swiper() {
             if (CITY_BANNER_CONFIG[this.currentCity]) {
               ForEach(CITY_BANNER_CONFIG[this.currentCity], (item: CityBanner) => {
@@ -199,7 +180,7 @@ export struct ExploreView {
           }
           .width('100%').height(180).autoPlay(true).borderRadius(12)
 
-          // --- 3. 寻域快报 ---
+          // --- 寻域快报 ---
           Row() {
             Text('寻域快报').fontSize(14).fontWeight(FontWeight.Bold).fontColor('#FF4500')
             Divider().vertical(true).height(14).margin({ left: 8, right: 8 }).color('#EEE')
@@ -222,7 +203,7 @@ export struct ExploreView {
             }
           }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off)
 
-          // --- 4. 三排功能区 ---
+          // --- 三排功能区 ---
           Column() {
             Row() {
               this.CategoryIcon('城市印象', $r('sys.symbol.bookmark_fill'), '#007DFF')
@@ -247,7 +228,7 @@ export struct ExploreView {
           }
           .width('100%')
 
-          // --- 5. 正在讨论 ---
+          // --- 正在讨论 ---
           Column() {
             this.SectionHeader('正在讨论')
             Scroll() {
@@ -259,12 +240,23 @@ export struct ExploreView {
             }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off)
           }
 
-          // --- 6. 路线推荐 ---
+          // --- 动态路线推荐 ---
           Column() {
             this.SectionHeader(`寻域 · ${this.currentCity}精品路线`)
-            ForEach(CITY_ROUTES[this.currentCity] || CITY_ROUTES["武汉市"], (route: TravelRoute) => {
-              this.RouteCard(route.title, route.desc, route.distance)
-            })
+
+            if (CITY_ROUTES[this.currentCity] && CITY_ROUTES[this.currentCity].length > 0) {
+              ForEach(CITY_ROUTES[this.currentCity], (route: TravelRoute) => {
+                this.NewRouteCard(route)
+              })
+            } else {
+              Column() {
+                SymbolGlyph($r('sys.symbol.map_badge_cloud_slash_fill')).fontSize(30).fontColor(['#DDD'])
+                Text(`${this.currentCity} 路线正在火速规划中...`)
+                  .fontSize(14).fontColor('#999').margin({ top: 10 })
+                Text("试试 直辖市 、 武汉市 或 成都市 吧").fontSize(11).fontColor('#CCC').margin({ top: 5 })
+              }
+              .width('100%').padding(30).alignItems(HorizontalAlign.Center)
+            }
           }
           Column().height(80)
         }
@@ -273,17 +265,14 @@ export struct ExploreView {
     }.width('100%').height('100%').backgroundColor('#F8F8F8')
   }
 
-  // --- UI 构建器 ---
+  // --- 所有原有 Builder 完整保留 ---
 
   @Builder BannerImageItem(title: string, img: Resource) {
     Stack({ alignContent: Alignment.BottomStart }) {
       Image(img).width('100%').height('100%').borderRadius(12).objectFit(ImageFit.Cover)
       Text(title)
-        .fontSize(16)
-        .fontWeight(FontWeight.Bold)
-        .fontColor('#FFFFFF')
-        .margin(15)
-        .textShadow({ radius: 8, color: '#90000000', offsetX: 2, offsetY: 2 })
+        .fontSize(16).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
+        .margin(15).textShadow({ radius: 8, color: '#90000000', offsetX: 2, offsetY: 2 })
     }
   }
 
@@ -298,9 +287,6 @@ export struct ExploreView {
     }
   }
 
-  /**
-   * 核心修改函数：修正跳转定位
-   */
   @Builder CategoryIcon(name: string, icon: Resource, color: string, isAll: boolean = false) {
     Column() {
       Stack() {
@@ -311,22 +297,14 @@ export struct ExploreView {
     }
     .width('25%')
     .onClick(() => {
-      // 1. 判断是否是“城市印象”或“全部”
       if (name === '城市印象') {
         router.pushUrl({
           url: 'pages/DataDetailView',
-          params: {
-            title: name,
-            cityName: this.currentCity, // 【核心修改：使用动态定位值，不再写死北京市】
-            color: color,
-            icon: icon
-          }
+          params: { title: name, cityName: this.currentCity, color: color, icon: icon }
         });
       } else if (isAll || name === '全部') {
-        // 如果点击的是全部，跳转到全部服务页面
         router.pushUrl({ url: 'pages/AllFunctionsView' });
       } else {
-        // 其他功能暂时弹窗提示，不跳转
         promptAction.showToast({ message: `${name} 功能开发中...` });
       }
     })
@@ -349,19 +327,39 @@ export struct ExploreView {
     }.width('100%').margin({ bottom: 15 })
   }
 
-  @Builder RouteCard(title: string, desc: string, distance: string) {
+  // --- 修正跳转逻辑的 RouteCard ---
+  @Builder NewRouteCard(route: TravelRoute) {
     Row() {
       Column() {
         Circle({ width: 6, height: 6 }).fill('#007DFF')
         Rect().width(1).height(15).fill('#D8D8D8')
         Circle({ width: 6, height: 6 }).fill(Color.Transparent).stroke('#007DFF').strokeWidth(1)
       }.margin({ right: 12 })
+
       Column() {
-        Text(title).fontSize(15).fontWeight(FontWeight.Bold)
-        Text(desc).fontSize(12).fontColor('#666').margin({ top: 4 })
+        Text(route.routeName).fontSize(15).fontWeight(FontWeight.Bold)
+        Text(`${route.spots.length}个打卡点 · 建议时间${route.spots.length > 3 ? '1天' : '半天'}`)
+          .fontSize(12).fontColor('#666').margin({ top: 4 })
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-      Text(distance).fontSize(13).fontColor('#007DFF')
+
+      // 这里的 Button 和 Row 的点击事件都指向同一个跳转方法
+      Button('开始导览')
+        .height(28).fontSize(11).backgroundColor('#007DFF')
+        .onClick(() => this.jumpToGuide(route))
     }
     .width('100%').padding(15).backgroundColor('#FFFFFF').borderRadius(12).margin({ bottom: 10 })
+    .onClick(() => this.jumpToGuide(route)) // 确保点击整个卡片也能跳转
+  }
+
+  // 抽离跳转方法，增加报错打印，方便你调试
+  jumpToGuide(route: TravelRoute) {
+    console.info(`尝试跳转到 GuideView, 路线名: ${route.routeName}`);
+    router.pushUrl({
+      url: 'pages/guide/GuideView',
+      params: { route: route }
+    }, (err) => {
+      if (err) {
+        promptAction.showToast({ message: `跳转失败: ${err.message}` });      }
+    })
   }
 }

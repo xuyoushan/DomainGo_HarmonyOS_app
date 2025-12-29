@@ -5,6 +5,10 @@
   "main": "",
   "author": "",
   "license": "",
-  "dependencies": {}
+  "dependencies": {
+    "@kit.MapKit": "latest",
+    "@kit.BasicServicesKit": "latest",
+    "@kit.ArkUI": "latest"
+  }
 }
 

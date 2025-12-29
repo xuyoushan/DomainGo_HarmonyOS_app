@@ -38,22 +38,58 @@ struct DataDetailView {
     const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
 
     try {
-      // 2. 定位逻辑拦截：只有包含“北京”字样才去加载 beijing.md
+      // 2. 定位逻辑分支判断
       if (cityName.includes("北京")) {
         this.themeColor = "#FDF6E3";
         this.accentColor = "#B58900";
-
-        // 只有在这里才真正读取文件
+        // 读取北京文档
         const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("beijing.md");
-        const textDecoder = util.TextDecoder.create('utf-8');
-        const rawText: string = textDecoder.decodeWithStream(uint8arr);
-        this.parseMarkdown(rawText);
-
-      } else {
-        // 3. 【重点】如果是武汉或其他城市，确保 articleList 为空，并设置 loading 提示
+        this.processRawText(uint8arr);
+      }
+      else if (cityName.includes("天津")) {
+        // --- 新增天津逻辑 ---
+        this.themeColor = "#F5F7FA"; // 天津配色稍微清爽一点
+        this.accentColor = "#005BB7";
+        // 读取天津文档
+        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("tianjin.md");
+        this.processRawText(uint8arr);
+      }
+      else if (cityName.includes("上海")) {
+        // --- 新增上海逻辑 ---
+        this.themeColor = "#F2F2F2"; //
+        this.accentColor = "#A52A2A";
+        // 读取上海文档
+        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("shanghai.md");
+        this.processRawText(uint8arr);
+      }
+      else if (cityName.includes("武汉")) {
+        // --- 新增武汉逻辑 ---
+        this.themeColor = "#FDF5E6"; //
+        this.accentColor = "#E64340";
+        // 读取武汉文档
+        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("wuhan.md");
+        this.processRawText(uint8arr);
+      }
+      else if (cityName.includes("重庆")) {
+        // --- 新增重庆逻辑 ---
+        this.themeColor = "#F0F0F0"; //
+        this.accentColor = "#2F4F4F";
+        // 读取重庆文档
+        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("chongqing.md");
+        this.processRawText(uint8arr);
+      }
+      else if (cityName.includes("成都")) {
+        // --- 新增成都逻辑 ---
+        this.themeColor = "#F7F9F2"; //
+        this.accentColor = "#1B5E20";
+        // 读取成都文档
+        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("chengdu.md");
+        this.processRawText(uint8arr);
+      }
+      else {
+        // 3. 其他城市
         this.articleList = [];
         this.loadingStatus = `正在进入${cityName}城市印象频道...`;
-        // 不执行解析，直接结束，这样 build 里的 if 就会显示 loading 界面
       }
     } catch (e) {
       this.articleList = [];
@@ -61,8 +97,14 @@ struct DataDetailView {
     }
   }
 
+  // 新增一个解码中转函数，保持 parseMarkdown 逻辑纯净
+  processRawText(uint8arr: Uint8Array) {
+    const textDecoder = util.TextDecoder.create('utf-8');
+    const rawText: string = textDecoder.decodeWithStream(uint8arr);
+    this.parseMarkdown(rawText);
+  }
+
   parseMarkdown(allText: string) {
-    // 兼容你新修改的 ## 格式或原来的第X篇文章格式
     const parts = allText.split(/##|第[一二]篇文章：/);
     let tempArray: ArticleItem[] = [];
 
@@ -71,11 +113,22 @@ struct DataDetailView {
       if (trimmed.length > 0) {
         const lines = trimmed.split('\n');
         const title = lines[0].replace(/#/g, '').trim();
+
         let author = "名家散文";
         if (trimmed.includes("郁达夫")) author = "郁达夫";
         if (trimmed.includes("老舍")) author = "老舍";
-        const content = trimmed.substring(trimmed.indexOf('\n')).trim();
+        if (trimmed.includes("冯骥才")) author = "冯骥才"; // 新增：识别天津文章作者
+        if (trimmed.includes("冯兴东")) author = "冯兴东"; // 新增：识别天津文章作者
+        if (trimmed.includes("茅盾")) author = "茅盾"; // 新增：识别上海文章作者
+        if (trimmed.includes("王志纲")) author = "王志纲"; // 新增：识别上海文章作者
+        if (trimmed.includes("池莉")) author = "池莉"; // 新增：识别武汉文章作者
+        if (trimmed.includes("易中天")) author = "易中天"; // 新增：识别武汉文章作者
+        if (trimmed.includes("朱自清")) author = "朱自清"; // 新增：识别重庆文章作者
+        if (trimmed.includes("丰子恺")) author = "丰子恺"; // 新增：识别重庆文章作者
+        if (trimmed.includes("老舍")) author = "老舍"; // 新增：识别成都文章作者
+        if (trimmed.includes("何其芳")) author = "何其芳"; // 新增：识别成都文章作者
 
+        const content = trimmed.substring(trimmed.indexOf('\n')).trim();
         tempArray.push({ title: title, author: author, content: content });
       }
     });
