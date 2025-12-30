@@ -8,7 +8,8 @@
     "pages/mine/UserHomeView",
     "pages/circle/PostDynamicView",
     "pages/mine/RegisterView",
-    "pages/AllFunctionsView",
-    "pages/DataDetailView"
+    "pages/features/AllFunctionsView",
+    "pages/features/DataDetailView",
+    "pages/features/NoteView"
   ]
 }

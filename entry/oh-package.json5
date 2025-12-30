@@ -6,9 +6,9 @@
   "author": "",
   "license": "",
   "dependencies": {
-    "@kit.MapKit": "latest",
-    "@kit.BasicServicesKit": "latest",
-    "@kit.ArkUI": "latest"
+//    "@kit.MapKit": "latest",
+//    "@kit.BasicServicesKit": "latest",
+//    "@kit.ArkUI": "latest"
   }
 }
 
