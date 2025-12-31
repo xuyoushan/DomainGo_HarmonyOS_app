@@ -1,7 +1,7 @@
 import { LocationManager } from '../../services/LocationManager';
 import { common } from '@kit.AbilityKit';
 import http from '@ohos.net.http';
-import { PROVINCE_CITY_DATA } from './CityData';
+import { PROVINCE_CITY_DATA } from '../../models/CityData';
 import { CITY_BANNER_CONFIG, CityBanner } from './CityBannerData';
 import { promptAction, router } from '@kit.ArkUI';
 import { CITY_ROUTES, TravelRoute, ScenicSpot } from '../../models/RouteData';
@@ -258,6 +258,8 @@ export struct ExploreView {
         router.pushUrl({ url: 'pages/features/AllFunctionsView' });
       } else if (name === '随手笔记') {
         router.pushUrl({ url: 'pages/features/NoteView'})
+      } else if (name === '历史轴线') {
+        router.pushUrl({ url: 'pages/features/CityHistoryPage', params: { title: name, cityName: this.currentCity, color: color, icon: icon } });
       } else {
         promptAction.showToast({ message: `${name} 功能开发中...` });
       }

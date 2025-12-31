@@ -1,7 +1,7 @@
 import router from '@ohos.router';
 import http from '@ohos.net.http';
 import { PostItem } from '../../models/PostItem';
-import { PROVINCE_CITY_DATA } from '../explore/CityData';
+import { PROVINCE_CITY_DATA } from '../../models/CityData';
 import photoAccessHelper from '@ohos.file.photoAccessHelper';
 // 修正：在 API 12 中推荐使用 @kit 导入或确保引用路径正确
 import { promptAction } from '@kit.ArkUI';

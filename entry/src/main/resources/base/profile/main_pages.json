@@ -10,6 +10,7 @@
     "pages/mine/RegisterView",
     "pages/features/AllFunctionsView",
     "pages/features/DataDetailView",
-    "pages/features/NoteView"
+    "pages/features/NoteView",
+    "pages/features/CityHistoryPage"
   ]
 }
