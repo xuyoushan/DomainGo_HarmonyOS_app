@@ -11,6 +11,7 @@
     "pages/features/AllFunctionsView",
     "pages/features/DataDetailView",
     "pages/features/NoteView",
-    "pages/features/CityHistoryPage"
+    "pages/features/CityHistoryPage",
+    "pages/features/CityCelebrityPage"
   ]
 }

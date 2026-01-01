@@ -260,6 +260,8 @@ export struct ExploreView {
         router.pushUrl({ url: 'pages/features/NoteView'})
       } else if (name === '历史轴线') {
         router.pushUrl({ url: 'pages/features/CityHistoryPage', params: { title: name, cityName: this.currentCity, color: color, icon: icon } });
+      } else if (name === '城市名人') {
+        router.pushUrl({ url: 'pages/features/CityCelebrityPage', params: { title: name, cityName: this.currentCity, color: color, icon: icon }});
       } else {
         promptAction.showToast({ message: `${name} 功能开发中...` });
       }
