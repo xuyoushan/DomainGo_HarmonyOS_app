@@ -157,8 +157,10 @@ struct AllFunctionsView {
             if (item.name === '敬请期待') {
               promptAction.showToast({ message: '更多功能正在持续更新中...' });
             } else {
-              router.pushUrl({ url: 'pages/features/GovServiceDetailView' })
-              params: { defaultType: item.name } // 比如传“邮编查询”
+              router.pushUrl({
+                url: 'pages/features/GovServiceDetailView',
+                params: { defaultType: item.name }
+              })
             }
           })
         }, (item: FunctionItem) => item.name)
