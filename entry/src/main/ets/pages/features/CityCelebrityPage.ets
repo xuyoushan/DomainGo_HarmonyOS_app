@@ -193,7 +193,7 @@ struct CityPeoplePage {
         Blank()
       }
       .width('100%')
-      .padding({ left: 20, right: 20, top: 50 })
+      .padding({ left: 20, right: 20, top: 10 })
       .backgroundColor('rgba(250,250,248,0.8)') // 顶部导航加一层毛玻璃或半透明背景，确保能看清
       .backdropBlur(10)
       .hitTestBehavior(HitTestMode.Transparent)

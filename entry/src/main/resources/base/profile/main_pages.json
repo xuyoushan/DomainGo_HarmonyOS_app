@@ -12,6 +12,7 @@
     "pages/features/DataDetailView",
     "pages/features/NoteView",
     "pages/features/CityHistoryPage",
-    "pages/features/CityCelebrityPage"
+    "pages/features/CityCelebrityPage",
+    "pages/features/GovServiceDetailView"
   ]
 }

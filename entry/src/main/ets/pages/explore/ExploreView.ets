@@ -2,12 +2,12 @@ import { LocationManager } from '../../services/LocationManager';
 import { common } from '@kit.AbilityKit';
 import http from '@ohos.net.http';
 import { PROVINCE_CITY_DATA } from '../../models/CityData';
-import { CITY_BANNER_CONFIG, CityBanner } from './CityBannerData';
+import { CITY_BANNER_CONFIG, CityBanner } from '../../models/CityBannerData';
 import { promptAction, router } from '@kit.ArkUI';
 import { CITY_ROUTES, TravelRoute, ScenicSpot } from '../../models/RouteData';
 
 // --- 关键：引入外部动态城市数据 ---
-import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA, CityExploreConfig } from './ExploreCityData';
+import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA, CityExploreConfig } from '../../models/ExploreCityData';
 
 interface WeatherNow { temperature: string; text: string; }
 interface WeatherResult { now: WeatherNow; }
@@ -23,7 +23,6 @@ export struct ExploreView {
   @State weatherText: string = '阴';
   @State searchText: string = '';
 
-  // 已删除旧的 CITY_BANNER_DATA 引用，统一由外部配置和 currentCity 驱动
   @State hotTopics: HotTopic[] = [
     { title: '武汉樱花地图', color: '#FFEAA7', count: '3.5w' },
     { title: '老汉口建筑寻踪', color: '#81ECEC', count: '1.2w' },
