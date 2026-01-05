@@ -119,7 +119,7 @@ export const CITY_GOV_DATA: Record<string, DistrictDetail[]> = {
     { name: '东西湖区', belong: '湖北省武汉市', postCode: '430040', areaCode: '027', population: '约91.7万' },
     { name: '汉南区', belong: '湖北省武汉市', postCode: '430090', areaCode: '027', population: '约14.5万' },
     { name: '蔡甸区', belong: '湖北省武汉市', postCode: '430100', areaCode: '027', population: '约55.4万' },
-    { name: '江夏区', belong: '湖北省武汉市', postCode: '430200', areaCode: '027', population: '约106.33万', subLocality: ['金口', '庙山', '纸坊', '乌龙泉', '藏龙岛'] },
+    { name: '江夏区', belong: '湖北省武汉市', postCode: '430200', areaCode: '027', population: '约106.33万'},
     { name: '黄陂区', belong: '湖北省武汉市', postCode: '430300', areaCode: '027', population: '约115.1万' },
     { name: '新洲区', belong: '湖北省武汉市', postCode: '430400', areaCode: '027', population: '约86.0万' }
   ],

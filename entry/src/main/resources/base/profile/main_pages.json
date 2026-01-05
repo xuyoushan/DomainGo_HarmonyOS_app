@@ -13,6 +13,8 @@
     "pages/features/NoteView",
     "pages/features/CityHistoryPage",
     "pages/features/CityCelebrityPage",
-    "pages/features/GovServiceDetailView"
+    "pages/features/GovServiceDetailView",
+    "pages/WebGuidePage",
+    "pages/features/ScheduleView"
   ]
 }

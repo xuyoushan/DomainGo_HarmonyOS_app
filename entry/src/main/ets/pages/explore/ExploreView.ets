@@ -1,4 +1,4 @@
-import { LocationManager } from '../../services/LocationManager';
+import { LocationManager, RealLocation } from '../../services/LocationManager';
 import { common } from '@kit.AbilityKit';
 import http from '@ohos.net.http';
 import { PROVINCE_CITY_DATA } from '../../models/CityData';
@@ -37,8 +37,34 @@ export struct ExploreView {
   }
 
   aboutToAppear() {
+    // 🔥 进入页面就获取定位（后台完成）
     this.initLocation();
   }
+
+  async initLocation() {
+    try {
+      const isAuth = await LocationManager.requestPermission(this.context)
+      if (isAuth) {
+        // 获取真实城市
+        const city = await LocationManager.getRealCity(this.context)
+        if (city) {
+          this.currentCity = city
+          AppStorage.setOrCreate('currentCity', city)
+          console.info('[Explore] 定位城市:', city)
+          // 刷新天气
+          this.fetchRealWeather(city)
+        }
+      } else {
+        console.warn('[Explore] 定位权限未授予，使用默认城市', this.currentCity)
+        this.fetchRealWeather(this.currentCity)
+      }
+    } catch (err) {
+      console.error('[Explore] 定位失败', err)
+      this.fetchRealWeather(this.currentCity)
+    }
+  }
+
+
 
   // 城市选择器：保留原逻辑
   showCityPicker() {
@@ -88,20 +114,20 @@ export struct ExploreView {
     }
   }
 
-  // 定位初始化：保留原逻辑
-  async initLocation() {
-    let isAuth = await LocationManager.requestPermission(this.context);
-    if (isAuth) {
-      const res = await LocationManager.getRealCity();
-      if (res) {
-        AppStorage.setOrCreate('currentCity', res);
-        this.currentCity = res;
-        this.fetchRealWeather(res);
-      }
-    } else {
-      this.fetchRealWeather(this.currentCity);
-    }
-  }
+  // // 定位初始化：保留原逻辑
+  // async initLocation() {
+  //   let isAuth = await LocationManager.requestPermission(this.context);
+  //   if (isAuth) {
+  //     const res = await LocationManager.getRealCity();
+  //     if (res) {
+  //       AppStorage.setOrCreate('currentCity', res);
+  //       this.currentCity = res;
+  //       this.fetchRealWeather(res);
+  //     }
+  //   } else {
+  //     this.fetchRealWeather(this.currentCity);
+  //   }
+  // }
 
   getWeatherIcon(text: string): Resource {
     if (text.includes('晴')) return $r('sys.symbol.sun_max_fill');
@@ -177,7 +203,7 @@ export struct ExploreView {
             }.width('100%')
 
             Row() {
-              this.CategoryIcon('历史轴线', $r('sys.symbol.timer'), '#636E72')
+              this.CategoryIcon('历史轴线', $r('sys.symbol.timer_circle_fill'), '#65bb5c')
               this.CategoryIcon('文化资源', $r('sys.symbol.flower'), '#FF2D55')
               this.CategoryIcon('特产风味', $r('sys.symbol.fork_knife'), '#FF6B6B')
               this.CategoryIcon('景点推荐', $r('sys.symbol.camera_fill'), '#45B7D1')
@@ -186,7 +212,7 @@ export struct ExploreView {
             Row() {
               this.CategoryIcon('交通出行', $r('sys.symbol.car_fill'), '#5AC8FA')
               this.CategoryIcon('随手笔记', $r('sys.symbol.square_and_pencil'), '#FAB1A0')
-              this.CategoryIcon('酒店住宿', $r('sys.symbol.bed_double_fill'), '#45B7D1')
+              this.CategoryIcon('行程安排', $r('sys.symbol.calendar_001_fill'), '#9B51E0')
               this.CategoryIcon('全部', $r('sys.symbol.square_fill_grid_2x2'), '#8E8E93', true)
             }.width('100%').margin({ top: 15 })
           }.width('100%')
@@ -261,6 +287,8 @@ export struct ExploreView {
         router.pushUrl({ url: 'pages/features/CityHistoryPage', params: { title: name, cityName: this.currentCity, color: color, icon: icon } });
       } else if (name === '城市名人') {
         router.pushUrl({ url: 'pages/features/CityCelebrityPage', params: { title: name, cityName: this.currentCity, color: color, icon: icon }});
+      } else if (name === '行程安排') {
+        router.pushUrl({ url: 'pages/features/ScheduleView'})
       } else {
         promptAction.showToast({ message: `${name} 功能开发中...` });
       }
@@ -296,11 +324,31 @@ export struct ExploreView {
         Text(`${route.spots.length}个打卡点 · 建议时间${route.spots.length > 3 ? '1天' : '半天'}`)
           .fontSize(12).fontColor('#666').margin({ top: 4 })
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-      Button('开始导览').height(28).fontSize(11).backgroundColor('#007DFF')
-        .onClick(() => this.jumpToGuide(route))
+
+      Button('同步行程').height(28).fontSize(11).backgroundColor('#007DFF')
+        .onClick(() => {
+          // ✅ API 21 正确写法：确保参数对象符合 router.RouterOptions
+          const options: router.RouterOptions = {
+            url: 'pages/features/TravelScheduleView',
+            params: {
+              'route': route,
+              'cityName': this.currentCity
+            }
+          };
+          router.pushUrl(options);
+        })
     }
     .width('100%').padding(15).backgroundColor('#FFFFFF').borderRadius(12).margin({ bottom: 10 })
-    .onClick(() => this.jumpToGuide(route))
+    .onClick(() => {
+      const options: router.RouterOptions = {
+        url: 'pages/features/TravelScheduleView',
+        params: {
+          'route': route,
+          'cityName': this.currentCity
+        }
+      };
+      router.pushUrl(options);
+    })
   }
 
   jumpToGuide(route: TravelRoute) {

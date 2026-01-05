@@ -35,6 +35,7 @@ struct GovServiceDetailView {
     const params = router.getParams() as Record<string, string>;
     const target = params?.defaultType;             // 从上页传入的高亮目标
 
+
     let raw = CITY_GOV_DATA[this.currentCity] || [];
     const myDist = '江夏区';                         // 模拟定位区（未来可接系统定位）
 
@@ -275,11 +276,115 @@ struct GovServiceDetailView {
   /* =========================以下 Builder：UI 组件块========================= */
   // 结果卡片
   @Builder
-  ResultCard(item: DistrictDetail) {}
-  // 信息盒子（带高亮逻辑）
+  ResultCard(item: DistrictDetail) {
+    Column() {
+      Row() {
+        Image($r('sys.symbol.satellite_map_fill'))
+          .width(20)
+          .height(20)
+          .margin({ right: 8 })
+          .fillColor('#FF9A22')
+
+        Text(item.name)
+          .fontSize(22)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#333')
+
+        // ✅ 跨城特别标注
+        if (!item.belong.includes(this.currentCity)) {
+          Text(item.belong.split('市')[0] + '市')
+            .fontSize(10)
+            .fontColor('#FFF')
+            .backgroundColor('#FF6B6B')
+            .margin({ left: 8 })
+            .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+            .borderRadius(4)
+        }
+
+        Blank()
+
+        Text('城市信息')
+          .fontSize(12)
+          .fontColor('#FF9A22')
+          .backgroundColor('#FFF4E5')
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          .borderRadius(8)
+      }
+      .width('100%')
+      .margin({ bottom: 20 })
+
+      Flex({ wrap: FlexWrap.Wrap }) {
+        // 传入原始值用于搜索命中判断
+        this.InfoBox('行政隶属', item.belong, '行政隶属', item.belong)
+        this.InfoBox('邮政编码', item.postCode, '邮编查询', item.postCode)
+        this.InfoBox('区号查询', item.areaCode, '区号查询', item.areaCode)
+        this.InfoBox('人口数据', item.population, '人口数据', item.population)
+      }
+    }
+    .padding(20)
+    .backgroundColor('#FFF')
+    .borderRadius(24)
+    .shadow({ radius: 20, color: '#15000000', offsetY: 10 })
+    .margin({ bottom: 10 })
+  }
+
+  // --- 信息单元（核心改动：增加放大和阴影逻辑） ---
   @Builder
-  InfoBox(label: string, value: string, type: string, raw: string) {}
-  // 空状态
+  InfoBox(label: string, value: string, matchType: string, rawValue: string) {
+    // 逻辑：如果(功能点击进入) 或者 (搜索词命中了该项内容) 则激活效果
+    Column() {
+      Text(label)
+        .fontSize(11)
+        .fontColor((this.highlightType === matchType || (this.searchKey && rawValue.includes(this.searchKey))) ? '#FF9A22' : '#999')
+
+      Text(value)
+        .fontSize(14)
+        .fontWeight(FontWeight.Bold)
+        .fontColor('#333')
+        .margin({ top: 4 })
+    }
+    .width('47%')
+    .margin('1.5%')
+    .padding(12)
+    .borderRadius(12)
+    .alignItems(HorizontalAlign.Start)
+    // 激活态背景色
+    .backgroundColor((this.highlightType === matchType || (this.searchKey && rawValue.includes(this.searchKey))) ? '#FFF7E8' : '#F8F9FB')
+    // 1. 放大 1.05 倍
+    .scale({
+      x: (this.highlightType === matchType || (this.searchKey && rawValue.includes(this.searchKey))) ? 1.05 : 1.0,
+      y: (this.highlightType === matchType || (this.searchKey && rawValue.includes(this.searchKey))) ? 1.05 : 1.0
+    })
+    // 2. 周围阴影效果
+    .shadow({
+      radius: (this.highlightType === matchType || (this.searchKey && rawValue.includes(this.searchKey))) ? 15 : 0,
+      color: '#40FF9A22',
+      offsetY: 6
+    })
+    // 3. 边框高亮
+    .border({
+      width: (this.highlightType === matchType || (this.searchKey && rawValue.includes(this.searchKey))) ? 1.5 : 0,
+      color: '#FF9A22'
+    })
+    // 4. 动画过渡
+    .animation({ duration: 300, curve: Curve.EaseOut })
+  }
+
   @Builder
-  EmptyState() {}
+  EmptyState() {
+    Column() {
+      Image($r('sys.symbol.location_north_up_right_and_circle_dotted_fill'))
+        .width(80)
+        .height(80)
+        .fillColor(['#EEE'])
+
+      Text('没有找到相关地名信息\n可以尝试输入街道或区名')
+        .textAlign(TextAlign.Center)
+        .fontSize(14)
+        .fontColor('#999')
+        .margin({ top: 16 })
+    }
+    .width('100%')
+    .margin({ top: 60 })
+  }
 }

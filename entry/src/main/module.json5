@@ -39,7 +39,23 @@
         "reason": "$string:image_reason", // 需要在 string.json 中定义原因，或直接写字符串
         "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
       },
-      { "name": "ohos.permission.GET_NETWORK_INFO" }
+      { "name": "ohos.permission.GET_NETWORK_INFO" },
+      {
+        "name": "ohos.permission.READ_CALENDAR",
+        "reason": "$string:calendar_reason",
+        "usedScene": {
+          "abilities": ["EntryAbility"],
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.WRITE_CALENDAR",
+        "reason": "$string:calendar_reason",
+        "usedScene": {
+          "abilities": ["EntryAbility"],
+          "when": "inuse"
+        }
+      }
     ],
     // --- 新增权限声明结束 ---
     "abilities": [
