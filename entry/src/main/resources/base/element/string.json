@@ -27,6 +27,30 @@
     {
       "name": "calendar_reason",
       "value": "用于将您的旅游行程同步至系统日历，并在手机和手表上提醒您。"
+    },
+    {
+      "name": "EntryFormAbility_desc",
+      "value": "form_description"
+    },
+    {
+      "name": "EntryFormAbility_label",
+      "value": "form_label"
+    },
+    {
+      "name": "schedule_widget_desc",
+      "value": "View and manage your recent travel schedules on the home screen."
+    },
+    {
+      "name": "schedule_widget_display_name",
+      "value": "MySchedule"
+    },
+    {
+      "name": "card_list_title",
+      "value": "Title"
+    },
+    {
+      "name": "card_list_content",
+      "value": "Introduction"
     }
   ]
 }

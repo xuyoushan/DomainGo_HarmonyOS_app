@@ -114,20 +114,6 @@ export struct ExploreView {
     }
   }
 
-  // // 定位初始化：保留原逻辑
-  // async initLocation() {
-  //   let isAuth = await LocationManager.requestPermission(this.context);
-  //   if (isAuth) {
-  //     const res = await LocationManager.getRealCity();
-  //     if (res) {
-  //       AppStorage.setOrCreate('currentCity', res);
-  //       this.currentCity = res;
-  //       this.fetchRealWeather(res);
-  //     }
-  //   } else {
-  //     this.fetchRealWeather(this.currentCity);
-  //   }
-  // }
 
   getWeatherIcon(text: string): Resource {
     if (text.includes('晴')) return $r('sys.symbol.sun_max_fill');
@@ -325,30 +311,11 @@ export struct ExploreView {
           .fontSize(12).fontColor('#666').margin({ top: 4 })
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
 
-      Button('同步行程').height(28).fontSize(11).backgroundColor('#007DFF')
-        .onClick(() => {
-          // ✅ API 21 正确写法：确保参数对象符合 router.RouterOptions
-          const options: router.RouterOptions = {
-            url: 'pages/features/TravelScheduleView',
-            params: {
-              'route': route,
-              'cityName': this.currentCity
-            }
-          };
-          router.pushUrl(options);
-        })
+      Button('开始导览').height(28).fontSize(11).backgroundColor('#007DFF')
+        .onClick(() => this.jumpToGuide(route))
     }
     .width('100%').padding(15).backgroundColor('#FFFFFF').borderRadius(12).margin({ bottom: 10 })
-    .onClick(() => {
-      const options: router.RouterOptions = {
-        url: 'pages/features/TravelScheduleView',
-        params: {
-          'route': route,
-          'cityName': this.currentCity
-        }
-      };
-      router.pushUrl(options);
-    })
+    .onClick(() => this.jumpToGuide(route))
   }
 
   jumpToGuide(route: TravelRoute) {
