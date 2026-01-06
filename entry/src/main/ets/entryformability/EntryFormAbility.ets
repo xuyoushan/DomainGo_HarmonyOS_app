@@ -1,32 +1,99 @@
-import { formBindingData, FormExtensionAbility, formInfo } from '@kit.FormKit';
+import { FormExtensionAbility, formBindingData, formProvider } from '@kit.FormKit';
 import { Want } from '@kit.AbilityKit';
+import preferences from '@ohos.data.preferences';
+import { common } from '@kit.AbilityKit';
+import wantAgent from '@ohos.app.ability.wantAgent';
+
+// 这里保留你定义的接口
+interface MySchedule {
+  id: string;
+  title: string;
+  location: string;
+  description: string;
+  date: string;
+}
 
 export default class EntryFormAbility extends FormExtensionAbility {
-  onAddForm(want: Want) {
-    // Called to return a FormBindingData object.
-    const formData = '';
-    return formBindingData.createFormBindingData(formData);
+
+  onAddForm(want: Want): formBindingData.FormBindingData {
+    console.info('[FormAbility] onAddForm');
+
+    const context = this.context as common.Context;
+    const formId = want.parameters?.['ohos.extra.param.key.form_id'] as string;
+
+    this.initializeFormData(formId, context);
+
+    // 必须同步返回初始绑定对象
+    return formBindingData.createFormBindingData({});
   }
 
-  onCastToNormalForm(formId: string) {
-    // Called when the form provider is notified that a temporary form is successfully
-    // converted to a normal form.
+  // 新增内部方法：承接你原来的异步逻辑，确保 formId 被保存并刷新
+  private async initializeFormData(formId: string, context: common.Context) {
+    try {
+      // --- 这里是你新增的逻辑，完全保留 ---
+      const pref = await preferences.getPreferences(context, 'travel_db');
+      await pref.put('current_form_id', formId);
+      await pref.flush();
+
+      // 调用你写的 updateForm
+      await this.updateForm(formId, context);
+    } catch (err) {
+      console.error('[FormAbility] initializeFormData failed');
+    }
   }
 
-  onUpdateForm(formId: string) {
-    // Called to notify the form provider to update a specified form.
+  async onUpdateForm(formId: string) {
+    console.info('[FormAbility] onUpdateForm');
+    const context = this.context as common.Context;
+    await this.updateForm(formId, context);
   }
 
-  onFormEvent(formId: string, message: string) {
-    // Called when a specified message event defined by the form provider is triggered.
+  onDeleteForm(formId: string) {
+    console.info('[FormAbility] onDelete formId:', formId);
   }
 
-  onRemoveForm(formId: string) {
-    // Called to notify the form provider that a specified form has been destroyed.
+  async onFormEvent(formId: string, message: string) {
+    if (message !== 'openSchedule') {
+      return;
+    }
+
+    const wantAgentInfo: wantAgent.WantAgentInfo = {
+      wants: [
+        {
+          bundleName: 'com.youshan.domaingo', // ⚠️ 确认你的包名
+          abilityName: 'EntryAbility',
+          parameters: {
+            route: 'scheduleview'
+          }
+        }
+      ],
+      operationType: wantAgent.OperationType.START_ABILITY,
+      requestCode: 0,
+      wantAgentFlags: [wantAgent.WantAgentFlags.UPDATE_PRESENT_FLAG]
+    };
+
+    const agent = await wantAgent.getWantAgent(wantAgentInfo);
+    wantAgent.trigger(agent, {
+      code: 0
+    });
   }
 
-  onAcquireFormState(want: Want) {
-    // Called to return a {@link FormState} object.
-    return formInfo.FormState.READY;
+  private async updateForm(formId: string, context: common.Context) {
+    try {
+      const pref = await preferences.getPreferences(context, 'travel_db');
+      const raw = await pref.get('schedules', '[]');
+
+      const schedules = JSON.parse(raw as string) as MySchedule[];
+
+      const formData = formBindingData.createFormBindingData({
+        'schedules': schedules
+      });
+
+      await formProvider.updateForm(formId, formData);
+
+      console.info('[FormAbility] updateForm success');
+    } catch (err) {
+      console.error('[FormAbility] updateForm failed', JSON.stringify(err));
+    }
   }
 }

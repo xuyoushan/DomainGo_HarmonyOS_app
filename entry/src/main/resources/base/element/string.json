@@ -38,11 +38,11 @@
     },
     {
       "name": "schedule_widget_desc",
-      "value": "View and manage your recent travel schedules on the home screen."
+      "value": "在桌面卡片上查看并管理您近期的行程。"
     },
     {
       "name": "schedule_widget_display_name",
-      "value": "MySchedule"
+      "value": "我的行程"
     },
     {
       "name": "card_list_title",

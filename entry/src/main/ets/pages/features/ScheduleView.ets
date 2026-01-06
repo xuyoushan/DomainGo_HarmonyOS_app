@@ -4,7 +4,7 @@ import { promptAction, router } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import preferences from '@ohos.data.preferences';
 import http from '@ohos.net.http';
-// 引入你上传的定位组件
+import { formProvider, formBindingData } from '@kit.FormKit';
 import { LocationManager } from '../../services/LocationManager';
 
 // 定义日程接口
@@ -127,6 +127,17 @@ struct TravelScheduleView {
     }
     this.localSchedules.sort((a: MySchedule, b: MySchedule) => a.date.getTime() - b.date.getTime());
     await this.saveToDisk();
+    try {
+      // 修正：从数据库取出保存好的 formId
+      const fId = await this.pref?.get('current_form_id', '') as string;
+      if (fId) {
+        await formProvider.updateForm(fId, formBindingData.createFormBindingData({
+          'schedules': this.localSchedules // 这里的 key 'schedules' 必须和卡片组件接收的一致
+        }));
+      }
+    } catch (err) {
+      console.error('Card update failed');
+    }
     const context = getContext(this) as common.UIAbilityContext;
     const atManager = abilityAccessCtrl.createAtManager();
     try {
@@ -333,6 +344,16 @@ struct TravelScheduleView {
       .onClick(async () => {
         this.localSchedules = this.localSchedules.filter(s => s.id !== id);
         await this.saveToDisk();
+
+        try {
+          const fId = await this.pref?.get('current_form_id', '') as string;
+          if (fId) {
+            // 修正：删除后也要同步更新卡片数据
+            await formProvider.updateForm(fId, formBindingData.createFormBindingData({
+              'schedules': this.localSchedules
+            }));
+          }
+        } catch (e) {}
         promptAction.showToast({ message: '日程已删除' });
       })
   }
