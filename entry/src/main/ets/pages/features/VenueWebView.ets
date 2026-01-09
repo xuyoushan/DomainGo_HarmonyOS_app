@@ -5,9 +5,10 @@ import { image } from '@kit.ImageKit'
 import { fileIo } from '@kit.CoreFileKit'
 import { photoAccessHelper } from '@kit.MediaLibraryKit'
 import { abilityAccessCtrl, common } from '@kit.AbilityKit'
+import { notificationManager } from '@kit.NotificationKit';
 
 /* =========================================================
- * 通用 WebView 组件（以后别的页面直接复用）
+ * 通用 WebView 组件
  * ========================================================= */
 @Component
 struct CommonWebContainer {
@@ -89,7 +90,6 @@ struct CommonWebContainer {
 @Component
 struct VenueWebView {
 
-  // ======== 状态（全部有默认值，ArkTS 安全） ========
   @State venue: Venue = {
     id: '',
     name: '',
@@ -103,6 +103,7 @@ struct VenueWebView {
   @State autoCaptureEnabled: boolean = true
   @State autoCaptureNotified: boolean = false
   @State firstBookingCaptured: boolean = false
+  @State screenshotUri: string = '' // ✅ 新增：记录截图路径供行程页使用
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, Venue>
@@ -115,6 +116,26 @@ struct VenueWebView {
 
     this.venue = params['venue']
     this.webUrl = params['venue'].officialUrl ?? ''
+  }
+
+  /* ================= 功能 1：针对不同分类的特殊提醒横幅 ================= */
+  @Builder
+  WarningBanner() {
+    if (this.venue.category === '学术殿堂' || this.venue.isUniversity) {
+      Row() {
+        SymbolGlyph($r('sys.symbol.info_circle_fill')).fontColor(['#FF9500']).fontSize(18)
+        Text(' 进校需携带身份证，教学区、办公区谢绝参观。')
+          .fontSize(12).fontColor('#CC7700').layoutWeight(1)
+      }
+      .width('100%').padding(10).backgroundColor('#FFF8E1')
+    } else if (this.venue.category === '文博馆') {
+      Row() {
+        SymbolGlyph($r('sys.symbol.clock_fill')).fontColor(['#FF4D4F']).fontSize(18)
+        Text(' 大多数纪念馆、博物馆周一闭馆，请留意日期。')
+          .fontSize(12).fontColor('#CC3333').layoutWeight(1)
+      }
+      .width('100%').padding(10).backgroundColor('#FFF1F0')
+    }
   }
 
   /* ================= 保存截图 ================= */
@@ -136,6 +157,7 @@ struct VenueWebView {
       const pixelMap = await componentSnapshot.get('webContainer')
       const helper = photoAccessHelper.getPhotoAccessHelper(context)
       const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, 'jpg')
+      this.screenshotUri = uri // ✅ 记录 URI
 
       const file = await fileIo.open(
         uri,
@@ -155,11 +177,11 @@ struct VenueWebView {
         promptAction.showToast({ message: '预约凭证已保存到相册' })
       }
 
-      if (!this.autoCaptureNotified) {
+      if (!this.autoCaptureNotified && showToast) {
         this.autoCaptureNotified = true
         promptAction.showDialog({
-          title: '已自动保存预约凭证',
-          message: '你可以在右上角关闭“自动截图保存”功能',
+          title: '凭证已存入相册',
+          message: '预约成功后请确保截图包含二维码。',
           buttons: [{ text: '知道了', color: '#007DFF' }]
         })
       }
@@ -168,75 +190,79 @@ struct VenueWebView {
     }
   }
 
+  /* ================= 预约逻辑：生成动态彩蛋标题 ================= */
+  generateSmartTitle(): string {
+    if (this.venue.category === '学术殿堂' || this.venue.isUniversity) return `学术探访：${this.venue.name}`;
+    if (this.venue.category === '文博馆') return `文博之旅：${this.venue.name}`;
+    return `参观：${this.venue.name}`;
+  }
+
   build() {
-    Column() {
+    Stack({ alignContent: Alignment.Bottom }) {
+      Column() {
+        /* ================= 顶部栏 ================= */
+        Row() {
+          SymbolGlyph($r('sys.symbol.xmark'))
+            .fontSize(22)
+            .onClick(() => router.back())
 
-      /* ================= 顶部栏 ================= */
-      Row() {
-        SymbolGlyph($r('sys.symbol.xmark'))
-          .fontSize(22)
-          .onClick(() => router.back())
+          Text(this.venue.name)
+            .fontSize(16)
+            .margin({ left: 12 })
+            .layoutWeight(1)
+            .maxLines(1)
 
-        Text(this.venue.name)
-          .fontSize(16)
-          .margin({ left: 12 })
-          .layoutWeight(1)
-          .maxLines(1)
+          SymbolGlyph($r('sys.symbol.camera_fill'))
+            .fontSize(22)
+            .fontColor(['#007DFF'])
+            .onClick(() => this.saveToGallery(true))
+        }
+        .padding(15)
+        .backgroundColor(Color.White)
 
-        Text(this.autoCaptureEnabled ? '自动截图：开' : '自动截图：关')
-          .fontSize(12)
-          .fontColor(this.autoCaptureEnabled ? '#07C160' : '#999')
-          .margin({ right: 12 })
-          .onClick(() => {
-            this.autoCaptureEnabled = !this.autoCaptureEnabled
-            promptAction.showToast({
-              message: this.autoCaptureEnabled ? '已开启自动截图' : '已关闭自动截图'
-            })
-          })
+        /* ✅ 功能 1：特殊提醒横幅 */
+        this.WarningBanner()
 
-        SymbolGlyph($r('sys.symbol.camera_fill'))
-          .fontSize(22)
-          .fontColor(['#007DFF'])
-          .onClick(() => this.saveToGallery(true))
-      }
-      .padding(15)
-      .backgroundColor(Color.White)
+        /* ================= 通用 WebView ================= */
+        CommonWebContainer({
+          url: this.webUrl
+        }).layoutWeight(1)
 
-      /* ================= 通用 WebView ================= */
-      CommonWebContainer({
-        url: this.webUrl
-      }).layoutWeight(1)
+        /* ================= 底部操作 ================= */
+        Column() {
+          /* ✅ 功能 2：截图引导提示层 */
+          Row() {
+            SymbolGlyph($r('sys.symbol.info_circle')).fontSize(14).fontColor(['#999'])
+            Text(' 预约成功后请手动截图或点击上方相机存证')
+              .fontSize(12).fontColor('#999')
+          }.margin({ bottom: 8 })
 
-      /* ================= 底部操作 ================= */
-      Row() {
-        Button('预约成功，同步到行程安排')
-          .width('90%')
-          .height(46)
-          .backgroundColor('#007DFF')
-          .onClick(async () => {
-
-            // ✅ 仅首次预约成功自动截图
-            if (
-              this.autoCaptureEnabled &&
-                !this.firstBookingCaptured
-            ) {
-              this.firstBookingCaptured = true
-              await this.saveToGallery(false)
-            }
-
-            router.pushUrl({
-              url: 'pages/features/ScheduleView',
-              params: {
-                presetTitle: `参观：${this.venue.name}`,
-                presetLocation: this.venue.address,
-                presetDesc: `已预约完成，入馆地址：${this.venue.address}`
+          Button('我已成功预约，同步到行程')
+            .width('90%')
+            .height(46)
+            .backgroundColor('#007DFF')
+            .onClick(async () => {
+              // ✅ 功能 3：自动截图与带参跳转
+              if (this.autoCaptureEnabled && !this.firstBookingCaptured) {
+                this.firstBookingCaptured = true
+                await this.saveToGallery(false)
               }
+
+              router.pushUrl({
+                url: 'pages/features/ScheduleView',
+                params: {
+                  presetTitle: this.generateSmartTitle(), // 彩蛋标题
+                  presetLocation: this.venue.address,
+                  presetDesc: `已预约完成，入馆地址：${this.venue.address}`,
+                  evidenceImage: this.screenshotUri // 传递截图凭证
+                }
+              })
             })
-          })
+        }
+        .padding({ top: 12, bottom: 24 })
+        .backgroundColor('#F8F8F8')
       }
-      .padding(12)
-      .backgroundColor('#F8F8F8')
+      .height('100%')
     }
-    .height('100%')
   }
 }

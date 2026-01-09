@@ -5,37 +5,40 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import preferences from '@ohos.data.preferences';
 import http from '@ohos.net.http';
 import { formProvider, formBindingData } from '@kit.FormKit';
+import { photoAccessHelper } from '@kit.MediaLibraryKit'; // 新增：相册选择器
 import { LocationManager } from '../../services/LocationManager';
 
-// 定义日程接口
+// --- 1. 定义日程接口：增加截图凭证字段 ---
 interface MySchedule {
   id: string;
   title: string;
   location: string;
   description: string;
   date: Date;
+  evidenceImage?: string; // ✅ 新增：存储截图的路径
 }
 
-// 高德POI接口
 interface AmapPoi { name: string; address: string; }
 interface AmapResponse { status: string; pois: AmapPoi[]; }
 
 @Entry
 @Component
 struct TravelScheduleView {
-  // --- 状态变量 ---
   @State eventTitle: string = '';
   @State eventLocation: string = '';
   @State eventDescription: string = '';
   @State selectedDate: Date = new Date();
   @State isSubmitting: boolean = false;
 
-  // --- 本地管理状态 ---
+  // --- 新增：截图管理状态 ---
+  @State evidenceImage: string = ''; // 当前编辑中的截图路径
+  @State showFullImage: boolean = false; // 全屏预览控制
+  @State previewImageUrl: string = ''; // 预览图地址
+
   @State localSchedules: MySchedule[] = [];
   @State isManageMode: boolean = false;
   @State editingId: string | null = null;
 
-  // --- 新增：地图搜索状态 ---
   @State showLocationSearch: boolean = false;
   @State searchKey: string = '';
   @State searchResults: AmapPoi[] = [];
@@ -44,19 +47,39 @@ struct TravelScheduleView {
   private calendarMgr: calendarManager.CalendarManager | null = null;
   private pref: preferences.Preferences | null = null;
 
-  // 找到你 ScheduleView.ets 里的 aboutToAppear 方法，在开头加入这些：
   async aboutToAppear() {
     const params = router.getParams() as Record<string, string>;
     if (params && params.presetTitle) {
-      // 自动填充预约页传过来的内容
+      // ✅ 2. 自动填充与截图关联逻辑
       this.eventTitle = params.presetTitle;
       this.eventLocation = params.presetLocation;
       this.eventDescription = params.presetDesc;
-      this.isManageMode = false; // 切换到新增模式
+      // 捕获从 WebView 传过来的自动截图
+      if (params.evidenceImage) {
+        this.evidenceImage = params.evidenceImage;
+      }
+      this.isManageMode = false;
     }
 
     this.initCalendarManager();
     await this.initPreferences();
+  }
+
+  // --- 新增：系统相册联动（PhotoPicker） ---
+  async selectImageFromAlbum() {
+    try {
+      const photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
+      photoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
+      photoSelectOptions.maxSelectNumber = 1;
+      const photoPicker = new photoAccessHelper.PhotoViewPicker();
+      const photoSelectResult = await photoPicker.select(photoSelectOptions);
+      if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
+        this.evidenceImage = photoSelectResult.photoUris[0];
+        promptAction.showToast({ message: '凭证已关联' });
+      }
+    } catch (err) {
+      console.error('选择图片失败');
+    }
   }
 
   async initPreferences() {
@@ -72,7 +95,8 @@ struct TravelScheduleView {
         title: item.title,
         location: item.location,
         description: item.description,
-        date: new Date(item.date)
+        date: new Date(item.date),
+        evidenceImage: item.evidenceImage // ✅ 恢复图片路径
       };
       processedList.push(schedule);
     }
@@ -86,7 +110,6 @@ struct TravelScheduleView {
     }
   }
 
-  // 地图搜索逻辑
   async searchPoi(keyword: string) {
     let httpRequest = http.createHttp();
     try {
@@ -127,7 +150,8 @@ struct TravelScheduleView {
       title: this.eventTitle,
       location: this.eventLocation,
       description: this.eventDescription,
-      date: this.selectedDate
+      date: this.selectedDate,
+      evidenceImage: this.evidenceImage // ✅ 保存截图
     };
     if (this.editingId) {
       const index = this.localSchedules.findIndex(s => s.id === this.editingId);
@@ -137,17 +161,16 @@ struct TravelScheduleView {
     }
     this.localSchedules.sort((a: MySchedule, b: MySchedule) => a.date.getTime() - b.date.getTime());
     await this.saveToDisk();
+
     try {
-      // 修正：从数据库取出保存好的 formId
       const fId = await this.pref?.get('current_form_id', '') as string;
       if (fId) {
         await formProvider.updateForm(fId, formBindingData.createFormBindingData({
-          'schedules': this.localSchedules // 这里的 key 'schedules' 必须和卡片组件接收的一致
+          'schedules': this.localSchedules
         }));
       }
-    } catch (err) {
-      console.error('Card update failed');
-    }
+    } catch (err) { console.error('Card update failed'); }
+
     const context = getContext(this) as common.UIAbilityContext;
     const atManager = abilityAccessCtrl.createAtManager();
     try {
@@ -155,7 +178,7 @@ struct TravelScheduleView {
       if (grantStatus.authResults[0] === 0 && grantStatus.authResults[1] === 0) {
         await this.doWriteCalendar();
       } else {
-        promptAction.showToast({ message: '本地已保存，真机需开启日历权限' });
+        promptAction.showToast({ message: '本地已保存，请开启权限同步日历' });
         this.exitEditing();
       }
     } catch (err) { this.exitEditing(); } finally { this.isSubmitting = false; }
@@ -172,6 +195,7 @@ struct TravelScheduleView {
     this.eventDescription = '';
     this.editingId = null;
     this.selectedDate = new Date();
+    this.evidenceImage = ''; // ✅ 重置截图
   }
 
   private async doWriteCalendar() {
@@ -191,7 +215,7 @@ struct TravelScheduleView {
       await calendar.addEvent(event);
       promptAction.showDialog({
         title: '同步成功',
-        message: '已存入系统日历，元服务卡片同步开启',
+        message: '已存入系统日历，凭证已就绪',
         buttons: [{ text: '完成', color: '#007DFF' }]
       }).then(() => { this.exitEditing(); });
     } catch (error) { promptAction.showToast({ message: '日历写入失败' }); }
@@ -200,7 +224,7 @@ struct TravelScheduleView {
   build() {
     Stack() {
       Column() {
-        // --- 精美页头 ---
+        // --- 页头 ---
         Row() {
           SymbolGlyph($r('sys.symbol.chevron_left')).fontSize(24)
             .onClick(() => {
@@ -211,9 +235,9 @@ struct TravelScheduleView {
                 router.back();
               }
             })
-          Text(this.isManageMode ? '行程管理' : '新增行程').fontSize(20).fontWeight(FontWeight.Bold).margin({ left: 12 })
+          Text(this.isManageMode ? '行程管理' : '完善日程').fontSize(20).fontWeight(FontWeight.Bold).margin({ left: 12 })
           Blank()
-          Text(this.isManageMode ? '添加' : '列表').fontSize(16).fontColor('#007DFF').fontWeight(FontWeight.Medium)
+          Text(this.isManageMode ? '添加' : '列表').fontSize(16).fontColor('#007DFF')
             .onClick(() => {
               this.isManageMode = !this.isManageMode;
               if (!this.isManageMode) this.resetForm();
@@ -232,12 +256,14 @@ struct TravelScheduleView {
           Scroll() {
             Column({ space: 20 }) {
               this.FormCard()
+              this.EvidenceUploadCard() // ✅ 新增：上传凭证卡片
               this.TipsCard()
+
               Button() {
                 if (this.isSubmitting) {
                   LoadingProgress().width(24).height(24).color(Color.White)
                 } else {
-                  Text(this.editingId ? '保存修改' : '存入系统日历').fontColor(Color.White).fontWeight(FontWeight.Bold)
+                  Text(this.editingId ? '确认更新' : '确认并同步日历').fontColor(Color.White).fontWeight(FontWeight.Bold)
                 }
               }
               .width('100%').height(54).borderRadius(27).backgroundColor('#007DFF').margin({ top: 10, bottom: 40 })
@@ -247,7 +273,23 @@ struct TravelScheduleView {
         }
       }.width('100%').height('100%').backgroundColor('#F2F3F5')
 
-      // 地点搜索半屏弹窗
+      // ✅ 3. 全屏大图预览层
+      if (this.showFullImage) {
+        Stack() {
+          Rect().width('100%').height('100%').fill(Color.Black).opacity(0.95)
+          Image(this.previewImageUrl)
+            .width('100%')
+            .objectFit(ImageFit.Contain)
+            .onClick(() => { this.showFullImage = false })
+
+          SymbolGlyph($r('sys.symbol.xmark_circle_fill'))
+            .fontSize(35).fontColor([Color.White])
+            .position({ x: '85%', y: '5%' })
+            .onClick(() => { this.showFullImage = false })
+        }
+        .width('100%').height('100%').zIndex(999)
+      }
+
       if (this.showLocationSearch) {
         this.LocationSearchPanel()
       }
@@ -257,72 +299,60 @@ struct TravelScheduleView {
   @Builder FormCard() {
     Column({ space: 12 }) {
       this.InputLabel('日程主题')
-      // 1. 自动增高且自动换行的 TextArea
-      TextArea({ placeholder: '输入内容，换行自动增高...', text: this.eventTitle })
-        .constraintSize({ minHeight: 50 }) // 代替 autoHeight
+      TextArea({ placeholder: '输入主题...', text: this.eventTitle })
+        .constraintSize({ minHeight: 50 })
         .padding(10)
         .backgroundColor('#F5F5F7').borderRadius(10)
-        .onChange((v: string) => { this.eventTitle = v; }) // 修正3：显式指定 string
+        .onChange((v: string) => { this.eventTitle = v; })
 
       this.InputLabel('地点')
-      // 2. 集成地图选点
       Row() {
-        TextInput({ placeholder: '点击右侧图标定位', text: this.eventLocation })
+        TextInput({ placeholder: '选择地点', text: this.eventLocation })
           .layoutWeight(1).backgroundColor(Color.Transparent)
           .onChange(v => this.eventLocation = v)
         SymbolGlyph($r('sys.symbol.mappin_and_rectangle')).fontSize(22).fontColor(['#007DFF'])
-          .onClick(() => {
-            this.showLocationSearch = true;
-            this.searchPoi('');
-          })
+          .onClick(() => { this.showLocationSearch = true; this.searchPoi(''); })
       }.width('100%').height(50).backgroundColor('#F5F5F7').borderRadius(10).padding({ right: 10 })
 
       this.InputLabel('提醒日期')
-      // 3. 动态日期限制与平滑翻动
-      DatePicker({
-        start: new Date(), // 锁定今天为起点
-        end: new Date(new Date().getFullYear() + 5, 11, 31), // 限制未来5年
-        selected: this.selectedDate
-      })
-        .height(140)
-        .onDateChange((v) => this.selectedDate = v)
-
-      this.InputLabel('备注')
-      TextArea({ placeholder: '补充说明...', text: this.eventDescription })
-        .height(100).backgroundColor('#F5F5F7').borderRadius(10)
-        .onChange(v => this.eventDescription = v)
+      DatePicker({ start: new Date(), selected: this.selectedDate })
+        .height(140).onDateChange((v) => this.selectedDate = v)
     }
     .padding(16).backgroundColor(Color.White).borderRadius(16).alignItems(HorizontalAlign.Start)
   }
 
-  @Builder LocationSearchPanel() {
-    Column() {
-      Row() {
-        Text('搜索位置').fontWeight(FontWeight.Bold)
-        Blank()
-        SymbolGlyph($r('sys.symbol.xmark')).onClick(() => this.showLocationSearch = false)
-      }.width('100%').padding(20)
+  // ✅ 新增：凭证上传编辑卡片
+  @Builder EvidenceUploadCard() {
+    Column({ space: 10 }) {
+      // ✅ 修改点 1：动态标题
+      this.InputLabel(this.eventTitle ? '预约凭证 (进门核验用)' : '行程附件')
 
-      Search({ placeholder: '输入关键字', value: this.searchKey }).width('90%')
-        .onChange(v => { this.searchKey = v; this.searchPoi(v); })
+      if (this.evidenceImage) {
+        Stack({ alignContent: Alignment.TopEnd }) {
+          Image(this.evidenceImage)
+            .width('100%').height(150).borderRadius(10).objectFit(ImageFit.Cover)
+            .onClick(() => {
+              this.previewImageUrl = this.evidenceImage;
+              this.showFullImage = true;
+            })
+          SymbolGlyph($r('sys.symbol.xmark_circle_fill'))
+            .fontSize(24).fontColor(['#FF4D4F']).margin(5)
+            .onClick(() => { this.evidenceImage = '' })
+        }
+      } else {
+        Row() {
+          SymbolGlyph($r('sys.symbol.plus_square_fill')).fontSize(30).fontColor(['#999'])
 
-      List() {
-        ForEach(this.searchResults, (item: AmapPoi) => {
-          ListItem() {
-            Column() {
-              Text(item.name).fontSize(16)
-              Text(item.address).fontSize(12).fontColor('#999').margin({ top: 4 })
-            }.width('100%').alignItems(HorizontalAlign.Start).padding(15)
-          }.onClick(() => {
-            this.eventLocation = item.name;
-            this.showLocationSearch = false;
-          })
-        })
-      }.layoutWeight(1).divider({ strokeWidth: 1, color: '#F1F3F5' })
+          // ✅ 修改点 2：动态提示文字
+          Text(this.eventTitle ? '点击上传预约成功截图' : '点击上传相关图片或凭证')
+            .fontColor('#999').margin({ left: 10 })
+        }
+        .width('100%').height(100).justifyContent(FlexAlign.Center)
+        .border({ width: 1, color: '#DDD', style: BorderStyle.Dashed }).borderRadius(10)
+        .onClick(() => this.selectImageFromAlbum())
+      }
     }
-    .width('100%').height('80%').backgroundColor(Color.White)
-    .borderRadius({ topLeft: 20, topRight: 20 })
-    .transition(TransitionEffect.move(TransitionEdge.BOTTOM).animation({ duration: 300 }))
+    .padding(16).backgroundColor(Color.White).borderRadius(16).alignItems(HorizontalAlign.Start)
   }
 
   @Builder ScheduleItemCard(item: MySchedule) {
@@ -332,11 +362,23 @@ struct TravelScheduleView {
         Text(this.getDaysLeft(item.date)).fontSize(20).fontWeight(FontWeight.Bold).fontColor('#007DFF')
         Text('天').fontSize(10).fontColor('#999')
       }.width(50).alignItems(HorizontalAlign.Center)
+
       Column({ space: 4 }) {
-        Text(item.title).fontSize(16).fontWeight(FontWeight.Bold)
-        Text(item.location).fontSize(12).fontColor('#666')
+        Text(item.title).fontSize(16).fontWeight(FontWeight.Bold).maxLines(1)
+        Text(item.location).fontSize(12).fontColor('#666').maxLines(1)
         Text(item.date.toLocaleDateString()).fontSize(10).fontColor('#999')
       }.layoutWeight(1).alignItems(HorizontalAlign.Start).margin({ left: 10 })
+
+      // ✅ 4. 卡片右侧显示缩略图，点击可放大
+      if (item.evidenceImage) {
+        Image(item.evidenceImage)
+          .width(50).height(50).borderRadius(6).margin({ right: 10 })
+          .onClick(() => {
+            this.previewImageUrl = item.evidenceImage!;
+            this.showFullImage = true;
+          })
+      }
+
       SymbolGlyph($r('sys.symbol.square_and_pencil')).fontSize(20).fontColor(['#007DFF'])
         .onClick(() => {
           this.editingId = item.id;
@@ -344,6 +386,7 @@ struct TravelScheduleView {
           this.eventLocation = item.location;
           this.eventDescription = item.description;
           this.selectedDate = item.date;
+          this.evidenceImage = item.evidenceImage || '';
           this.isManageMode = false;
         })
     }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(16)
@@ -354,26 +397,46 @@ struct TravelScheduleView {
       .onClick(async () => {
         this.localSchedules = this.localSchedules.filter(s => s.id !== id);
         await this.saveToDisk();
-
         try {
           const fId = await this.pref?.get('current_form_id', '') as string;
           if (fId) {
-            // 修正：删除后也要同步更新卡片数据
-            await formProvider.updateForm(fId, formBindingData.createFormBindingData({
-              'schedules': this.localSchedules
-            }));
+            await formProvider.updateForm(fId, formBindingData.createFormBindingData({ 'schedules': this.localSchedules }));
           }
         } catch (e) {}
         promptAction.showToast({ message: '日程已删除' });
       })
   }
 
+  @Builder LocationSearchPanel() {
+    Column() {
+      Row() {
+        Text('搜索位置').fontWeight(FontWeight.Bold)
+        Blank()
+        SymbolGlyph($r('sys.symbol.xmark')).onClick(() => this.showLocationSearch = false)
+      }.width('100%').padding(20)
+      Search({ placeholder: '输入关键字', value: this.searchKey }).width('90%')
+        .onChange(v => { this.searchKey = v; this.searchPoi(v); })
+      List() {
+        ForEach(this.searchResults, (item: AmapPoi) => {
+          ListItem() {
+            Column() {
+              Text(item.name).fontSize(16)
+              Text(item.address).fontSize(12).fontColor('#999').margin({ top: 4 })
+            }.width('100%').alignItems(HorizontalAlign.Start).padding(15)
+          }.onClick(() => { this.eventLocation = item.name; this.showLocationSearch = false; })
+        })
+      }.layoutWeight(1).divider({ strokeWidth: 1, color: '#F1F3F5' })
+    }
+    .width('100%').height('80%').backgroundColor(Color.White)
+    .borderRadius({ topLeft: 20, topRight: 20 })
+  }
+
   @Builder TipsCard() {
     Row() {
       SymbolGlyph($r('sys.symbol.watch')).fontSize(20).fontColor(['#007DFF'])
       Column() {
-        Text('元服务：倒计时卡片').fontSize(13).fontWeight(FontWeight.Bold)
-        Text('数据已加密存入磁盘，桌面卡片实时读取').fontSize(11).fontColor('#888').margin({ top: 2 })
+        Text('凭证管家').fontSize(13).fontWeight(FontWeight.Bold)
+        Text('点击行程卡片缩略图可全屏出示二维码').fontSize(11).fontColor('#888').margin({ top: 2 })
       }.margin({ left: 12 }).alignItems(HorizontalAlign.Start)
     }.width('100%').padding(16).backgroundColor('#E6F1FF').borderRadius(12)
   }

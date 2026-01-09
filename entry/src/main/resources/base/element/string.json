@@ -26,7 +26,7 @@
     },
     {
       "name": "reason_gallery",
-      "value": "我们需要访问相册权限，以便能够存储图片。"
+      "value": "用于将您的预约信息或海报保存至相册。"
     },
     {
       "name": "calendar_reason",
