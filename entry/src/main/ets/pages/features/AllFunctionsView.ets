@@ -158,6 +158,10 @@ struct AllFunctionsView {
               promptAction.showToast({ message: '更多功能正在持续更新中...' });
               return;
             }
+            if (item.name === '场馆预约') {
+              router.pushUrl({ url: 'pages/features/VenueBookingView' });
+              return;
+            }
             //定义政务类功能名单
             const govFunctions = ['行政隶属', '邮编查询', '区号查询', '人口数据'];
             if (govFunctions.includes(item.name)) {

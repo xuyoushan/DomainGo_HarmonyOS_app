@@ -44,7 +44,17 @@ struct TravelScheduleView {
   private calendarMgr: calendarManager.CalendarManager | null = null;
   private pref: preferences.Preferences | null = null;
 
+  // 找到你 ScheduleView.ets 里的 aboutToAppear 方法，在开头加入这些：
   async aboutToAppear() {
+    const params = router.getParams() as Record<string, string>;
+    if (params && params.presetTitle) {
+      // 自动填充预约页传过来的内容
+      this.eventTitle = params.presetTitle;
+      this.eventLocation = params.presetLocation;
+      this.eventDescription = params.presetDesc;
+      this.isManageMode = false; // 切换到新增模式
+    }
+
     this.initCalendarManager();
     await this.initPreferences();
   }

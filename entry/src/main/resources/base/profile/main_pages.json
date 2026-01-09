@@ -16,6 +16,8 @@
     "pages/features/GovServiceDetailView",
     "pages/WebGuidePage",
     "pages/features/ScheduleView",
-    "pages/features/GeoOrigin"
+    "pages/features/GeoOrigin",
+    "pages/features/VenueBookingView",
+    "pages/features/VenueWebView"
   ]
 }
