@@ -15,6 +15,7 @@
     "pages/features/CityCelebrityPage",
     "pages/features/GovServiceDetailView",
     "pages/WebGuidePage",
-    "pages/features/ScheduleView"
+    "pages/features/ScheduleView",
+    "pages/features/GeoOrigin"
   ]
 }

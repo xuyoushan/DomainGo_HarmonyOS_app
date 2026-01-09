@@ -11,6 +11,10 @@
     {
       "name": "list_item_count_background",
       "value": "#290a59f7"
+    },
+    {
+      "name": "theme_blue",
+      "value": "#165DFF"
     }
   ]
 }

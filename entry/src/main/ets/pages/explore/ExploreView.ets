@@ -184,7 +184,7 @@ export struct ExploreView {
             Row() {
               this.CategoryIcon('城市印象', $r('sys.symbol.bookmark_fill'), '#007DFF')
               this.CategoryIcon('行政区划', $r('sys.symbol.map'), '#4ECDC4')
-              this.CategoryIcon('地名故事', $r('sys.symbol.doc_text_fill'), '#A29BFE')
+              this.CategoryIcon('地名寻踪', $r('sys.symbol.doc_text_fill'), '#A29BFE')
               this.CategoryIcon('城市名人', $r('sys.symbol.person_crop_circle_fill'), '#FF9500')
             }.width('100%')
 
@@ -275,6 +275,8 @@ export struct ExploreView {
         router.pushUrl({ url: 'pages/features/CityCelebrityPage', params: { title: name, cityName: this.currentCity, color: color, icon: icon }});
       } else if (name === '行程安排') {
         router.pushUrl({ url: 'pages/features/ScheduleView'})
+      } else if (name === '地名寻踪') {
+        router.pushUrl({ url: 'pages/features/GeoOrigin', params: { title: name, cityName: this.currentCity, color: color, icon: icon }});
       } else {
         promptAction.showToast({ message: `${name} 功能开发中...` });
       }
