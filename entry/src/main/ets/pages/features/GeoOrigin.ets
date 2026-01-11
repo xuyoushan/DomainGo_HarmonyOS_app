@@ -54,10 +54,9 @@ struct GeoOriginNewView {
 
   // ⭐ API Key 安全处理：拆分存储，防止明文直接暴露
   private getGlmToken(): string {
-    const partA = '82e4d46a05264dd19a27e1d91b30dce6';
-    const partB = 'e1d91b30dce6';
-    const partC = 'UNpMhFWNznhFSPLo';
-    return `${partA}.${partB}.${partC}`;
+    const id = '82e4d46a05264dd19a27e1d91b30dce6';
+    const secret = 'UNpMhFWNznhFSPLo';
+    return `${id}.${secret}`; // 确保中间只有一个点
   }
 
   private GLM_MODEL = 'glm-4-flash';        // 快 + 免费额度 + 稳定

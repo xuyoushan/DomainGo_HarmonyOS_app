@@ -1,6 +1,9 @@
 // entry/src/main/ets/pages/DataDetailView.ets
 import { router } from '@kit.ArkUI';
 import { util } from '@kit.ArkTS';
+import { textToSpeech } from '@kit.CoreSpeechKit'; // 🔹 1. 引入语音套件
+import { promptAction } from '@kit.ArkUI'; // 🔹 统一使用 kit 引入
+import { BusinessError } from '@kit.BasicServicesKit'; // 🔹 必加：修复 TTS 不响应的关键
 import type common from '@ohos.app.ability.common';
 
 interface DetailParam {
@@ -16,6 +19,21 @@ interface ArticleItem {
   content: string;
 }
 
+interface CityStyle {
+  theme: string;
+  accent: string;
+  file: string;
+}
+
+const CITY_STYLES: Record<string, CityStyle> = {
+  "北京": { theme: "#FDF6E3", accent: "#B58900", file: "beijing.md" },
+  "天津": { theme: "#F5F7FA", accent: "#005BB7", file: "tianjin.md" },
+  "上海": { theme: "#F2F2F2", accent: "#A52A2A", file: "shanghai.md" },
+  "武汉": { theme: "#FDF5E6", accent: "#E64340", file: "wuhan.md" },
+  "重庆": { theme: "#F0F0F0", accent: "#2F4F4F", file: "chongqing.md" },
+  "成都": { theme: "#F7F9F2", accent: "#1B5E20", file: "chengdu.md" }
+};
+
 @Entry
 @Component
 struct DataDetailView {
@@ -26,74 +44,91 @@ struct DataDetailView {
   @State accentColor: string = "#B58900";
   @State loadingStatus: string = "正在读取文章内容...";
 
+  // 🔹 2. 朗读相关私有变量
+  private ttsEngine?: textToSpeech.TextToSpeechEngine;
+  @State currentSwiperIndex: number = 0; // 记录当前在看哪一篇
+
   aboutToAppear() {
     this.params = router.getParams() as DetailParam;
     this.loadArticleContent();
+    this.initTts(); // 🔹 3. 初始化TTS
+  }
+
+  // 🔹 4. 释放资源，防止内存泄漏和声音关不掉
+  aboutToDisappear() {
+    if (this.ttsEngine) {
+      this.ttsEngine.stop();
+      this.ttsEngine.shutdown();
+    }
+  }
+
+  // 🔹 5. 初始化TTS引擎逻辑
+  initTts() {
+    try {
+      let initParamsInfo: textToSpeech.CreateEngineParams = {
+        language: 'zh-CN',
+        person: 0,
+        online: 1,
+        extraParams: { 'style': 'interaction' }
+      };
+      textToSpeech.createEngine(initParamsInfo, (err: BusinessError, engine: textToSpeech.TextToSpeechEngine) => {
+        if (!err) {
+          this.ttsEngine = engine;
+          this.ttsEngine.setListener({
+            onStart: () => { this.isPlaying = true; },
+            onComplete: () => { this.isPlaying = false; },
+            onStop: () => { this.isPlaying = false; },
+            onError: () => { this.isPlaying = false; }
+          });
+        }
+      });
+    } catch (e) {
+      console.error('TTS Init Failed', JSON.stringify(e));
+    }
+  }
+
+  // 🔹 6. 朗读/停止逻辑
+  handleSpeech() {
+    if (!this.ttsEngine) {
+      promptAction.showToast({ message: '语音引擎初始化中...' });
+      return;
+    }
+    if (this.isPlaying) {
+      this.ttsEngine.stop();
+    } else {
+      const currentArticle = this.articleList[this.currentSwiperIndex];
+      if (currentArticle) {
+        // 朗读 标题 + 作者 + 正文内容
+        let textToRead = `${currentArticle.title}。作者：${currentArticle.author}。${currentArticle.content}`;
+        let speakParams: textToSpeech.SpeakParams = {
+          requestId: Date.now().toString(),
+          extraParams: { 'speed': 1.0, 'volume': 1.0, 'pitch': 1.0 }
+        };
+        this.ttsEngine.speak(textToRead, speakParams);
+      }
+    }
   }
 
   async loadArticleContent() {
     this.articleList = [];
-    // 1. 获取当前定位传过来的城市名
     const cityName = this.params?.cityName || "";
-    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    const context = getContext(this) as common.UIAbilityContext;
 
-    try {
-      // 2. 定位逻辑分支判断
-      if (cityName.includes("北京")) {
-        this.themeColor = "#FDF6E3";
-        this.accentColor = "#B58900";
-        // 读取北京文档
-        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("beijing.md");
+    // 匹配城市配置
+    const cityKey = Object.keys(CITY_STYLES).find(k => cityName.includes(k));
+    const config = cityKey ? CITY_STYLES[cityKey] : null;
+
+    if (config) {
+      this.themeColor = config.theme;
+      this.accentColor = config.accent;
+      try {
+        const uint8arr = await context.resourceManager.getRawFileContent(config.file);
         this.processRawText(uint8arr);
+      } catch (e) {
+        this.loadingStatus = `《${cityName}》内容正在整理中...`;
       }
-      else if (cityName.includes("天津")) {
-        // --- 新增天津逻辑 ---
-        this.themeColor = "#F5F7FA"; // 天津配色稍微清爽一点
-        this.accentColor = "#005BB7";
-        // 读取天津文档
-        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("tianjin.md");
-        this.processRawText(uint8arr);
-      }
-      else if (cityName.includes("上海")) {
-        // --- 新增上海逻辑 ---
-        this.themeColor = "#F2F2F2"; //
-        this.accentColor = "#A52A2A";
-        // 读取上海文档
-        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("shanghai.md");
-        this.processRawText(uint8arr);
-      }
-      else if (cityName.includes("武汉")) {
-        // --- 新增武汉逻辑 ---
-        this.themeColor = "#FDF5E6"; //
-        this.accentColor = "#E64340";
-        // 读取武汉文档
-        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("wuhan.md");
-        this.processRawText(uint8arr);
-      }
-      else if (cityName.includes("重庆")) {
-        // --- 新增重庆逻辑 ---
-        this.themeColor = "#F0F0F0"; //
-        this.accentColor = "#2F4F4F";
-        // 读取重庆文档
-        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("chongqing.md");
-        this.processRawText(uint8arr);
-      }
-      else if (cityName.includes("成都")) {
-        // --- 新增成都逻辑 ---
-        this.themeColor = "#F7F9F2"; //
-        this.accentColor = "#1B5E20";
-        // 读取成都文档
-        const uint8arr: Uint8Array = await context.resourceManager.getRawFileContent("chengdu.md");
-        this.processRawText(uint8arr);
-      }
-      else {
-        // 3. 其他城市
-        this.articleList = [];
-        this.loadingStatus = `正在进入${cityName}城市印象频道...`;
-      }
-    } catch (e) {
-      this.articleList = [];
-      this.loadingStatus = `《${cityName}》内容正在整理中...`;
+    } else {
+      this.loadingStatus = `正在进入${cityName}频道...`;
     }
   }
 
@@ -106,37 +141,21 @@ struct DataDetailView {
 
   parseMarkdown(allText: string) {
     const parts = allText.split(/##|第[一二]篇文章：/);
-    let tempArray: ArticleItem[] = [];
+    const authors = ["郁达夫", "老舍", "冯骥才", "冯兴东", "茅盾", "王志纲", "池莉", "易中天", "朱自清", "丰子恺", "何其芳"];
 
-    parts.forEach(part => {
-      const trimmed = part.trim();
-      if (trimmed.length > 0) {
-        const lines = trimmed.split('\n');
-        const title = lines[0].replace(/#/g, '').trim();
+    this.articleList = parts.filter(p => p.trim()).map((part): ArticleItem => { // 🔹 这里显式加上 : ArticleItem
+      const lines = part.trim().split('\n');
+      const title = lines[0].replace(/#/g, '').trim();
+      const content = part.trim().substring(part.trim().indexOf('\n')).trim();
+      const foundAuthor = authors.find(a => part.includes(a));
 
-        let author = "名家散文";
-        if (trimmed.includes("郁达夫")) author = "郁达夫";
-        if (trimmed.includes("老舍")) author = "老舍";
-        if (trimmed.includes("冯骥才")) author = "冯骥才"; // 新增：识别天津文章作者
-        if (trimmed.includes("冯兴东")) author = "冯兴东"; // 新增：识别天津文章作者
-        if (trimmed.includes("茅盾")) author = "茅盾"; // 新增：识别上海文章作者
-        if (trimmed.includes("王志纲")) author = "王志纲"; // 新增：识别上海文章作者
-        if (trimmed.includes("池莉")) author = "池莉"; // 新增：识别武汉文章作者
-        if (trimmed.includes("易中天")) author = "易中天"; // 新增：识别武汉文章作者
-        if (trimmed.includes("朱自清")) author = "朱自清"; // 新增：识别重庆文章作者
-        if (trimmed.includes("丰子恺")) author = "丰子恺"; // 新增：识别重庆文章作者
-        if (trimmed.includes("老舍")) author = "老舍"; // 新增：识别成都文章作者
-        if (trimmed.includes("何其芳")) author = "何其芳"; // 新增：识别成都文章作者
-
-        const content = trimmed.substring(trimmed.indexOf('\n')).trim();
-        tempArray.push({ title: title, author: author, content: content });
-      }
+      // 🔹 返回时确保字段完全匹配接口
+      return {
+        title: title,
+        author: foundAuthor || "名家散文",
+        content: content
+      };
     });
-    this.articleList = tempArray;
-  }
-
-  handleSpeech() {
-    this.isPlaying = !this.isPlaying;
   }
 
   build() {
@@ -233,6 +252,12 @@ struct DataDetailView {
         .loop(false)
         .indicator(true)
         .layoutWeight(1)
+        .onChange((index: number) => {
+          this.currentSwiperIndex = index;
+          if (this.isPlaying && this.ttsEngine) {
+            this.ttsEngine.stop();
+          }
+        })
       }
     }
     .width('100%')

@@ -8,6 +8,10 @@ export interface HistoryNode {
   description: string
   image: string
   isExpanded: boolean
+  screenX?: number     // 相对屏幕/画布的X坐标
+  screenY?: number     // 相对屏幕/画布的Y坐标
+  // sleep: 静态, breath: 自动缩放, active: 选中高亮+扩散波纹
+  status?: 'sleep' | 'breath' | 'active'
 }
 
 export const CITY_EXPLORE_MAP: Record<string, HistoryNode[]> = {

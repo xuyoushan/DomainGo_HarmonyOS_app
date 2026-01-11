@@ -72,7 +72,7 @@ struct AllFunctionsView {
               this.FunctionCard('文旅精选', '玩转城市 · 精选推荐', [
                 { name: '门票预订', icon: $r('sys.symbol.ticket_fill'), color: '#2F80ED' },
                 { name: '酒店住宿', icon: $r('sys.symbol.bed_double_fill'), color: '#45B7D1'},
-                { name: '场馆预约', icon: $r('sys.symbol.house_fill'), color: '#F2994A' },
+                { name: '交通出行', icon: $r('sys.symbol.car_fill'), color: '#5AC8FA'},
                 { name: '城市商圈', icon: $r('sys.symbol.cart_fill'), color: '#27AE60' }
               ])
 
@@ -156,10 +156,6 @@ struct AllFunctionsView {
           .onClick(() => {
             if (item.name === '敬请期待') {
               promptAction.showToast({ message: '更多功能正在持续更新中...' });
-              return;
-            }
-            if (item.name === '场馆预约') {
-              router.pushUrl({ url: 'pages/features/VenueBookingView' });
               return;
             }
             //定义政务类功能名单

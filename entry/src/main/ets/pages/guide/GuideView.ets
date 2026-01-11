@@ -17,7 +17,8 @@ struct GuidePageEntrance {
 
 @Component
 export struct GuideView {
-  @State currentCity: string = (AppStorage.get('currentCity') as string) || '北京市';
+  // 🔹 关键修改 1：使用 @StorageLink 实时绑定全局城市，使用 @Watch 监听切换行为
+  @StorageLink('currentCity') @Watch('onCityChange') currentCity: string = '北京市';
 
   @State route: TravelRoute = {
     routeName: '加载中...',
@@ -39,38 +40,32 @@ export struct GuideView {
   private mapController?: map.MapComponentController;
   private context = getContext(this) as common.UIAbilityContext;
   private realLocation: RealLocation | null = null;
-
-  // 自动刷新定位 timer
   private refreshTimer?: number;
 
+  // 🔹 关键修改 2：定义城市切换后的响应函数
+  onCityChange() {
+    console.info(`[Guide] 监测到城市切换至: ${this.currentCity}`);
+    this.currentIndex = 0; // 切换城市后重置进度
+    this.matchRouteByCity();
+    this.moveMapToSpot(0);
+  }
+
   async aboutToAppear() {
-    // 🔹 1. 每次进入页面先同步探索页切换的城市
-    const storedCity = AppStorage.get('currentCity') as string;
-    if (storedCity && storedCity !== this.currentCity) {
-      this.currentCity = storedCity;   // 🔹 更新 @State
-      this.matchRouteByCity();         // 🔹 更新路线
-      this.moveMapToSpot(this.currentIndex); // 🔹 更新地图
-    }
-
-    // 🔹 2. 获取真实定位，但不覆盖 currentCity
-    try {
-      this.realLocation = await LocationManager.getLocation(this.context);
-      // 🔹 city 不再更新 currentCity
-    } catch (e) {
-      console.warn('[Guide] 定位失败，仍允许打卡', e);
-    }
-
-
-    // 🔹 3. 初始化路线（防止没有 params）
+    // 🔹 冗余清理：不再需要手动 AppStorage.get，StorageLink 会自动同步
+    // 1. 初始化数据
     this.initializeData();
 
-    // 🔹 4. 启动自动刷新定位
+    // 2. 获取一次真实定位用于打卡校验
+    try {
+      this.realLocation = await LocationManager.getLocation(this.context);
+    } catch (e) {
+      console.warn('[Guide] 定位失败', e);
+    }
+
+    // 3. 启动自动刷新
     this.startAutoRefreshLocation();
   }
 
-
-
-  // 页面消失时清理 timer
   aboutToDisappear() {
     if (this.refreshTimer) {
       clearInterval(this.refreshTimer);
@@ -85,6 +80,7 @@ export struct GuideView {
     } else {
       this.matchRouteByCity();
     }
+    // 初始移动到当前进度点
     this.moveMapToSpot(this.currentIndex);
   }
 
@@ -177,11 +173,7 @@ export struct GuideView {
     const R = 6371000;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-        Math.cos(lat1 * Math.PI / 180) *
-        Math.cos(lat2 * Math.PI / 180) *
-          Math.sin(dLon / 2) ** 2;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
@@ -211,7 +203,6 @@ export struct GuideView {
     }
   }
 
-  /** 自动刷新定位 */
   private startAutoRefreshLocation() {
     if (this.refreshTimer) clearInterval(this.refreshTimer);
     this.refreshTimer = setInterval(async () => {
@@ -219,12 +210,12 @@ export struct GuideView {
         const loc = await LocationManager.getLocation(this.context);
         this.realLocation = loc;
       } catch {}
-    }, 30000); // 每 30 秒刷新一次
+    }, 30000);
   }
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      // --- 地图层 ---
+      // 地图层
       Column() {
         MapComponent({
           mapOptions: { position: this.mapCameraPosition },
@@ -233,7 +224,7 @@ export struct GuideView {
           .animation({ duration: 300, curve: Curve.EaseInOut })
       }.zIndex(1)
 
-      // --- 信息面板 + 滚动 ---
+      // 信息面板
       Scroll() {
         Column() {
           Column() {
@@ -299,7 +290,7 @@ export struct GuideView {
       .animation({ duration: 400, curve: Curve.FastOutSlowIn })
       .margin({ top: 220 }).padding(20).width('100%').height('100%').backgroundColor('#F7F7F7').borderRadius({ topLeft: 30, topRight: 30 })
 
-      // --- 顶部导航栏 ---
+      // 顶部导航栏
       Row() {
         Button() { SymbolGlyph($r('sys.symbol.chevron_left')).fontColor(['#333']).fontSize(24) }
         .type(ButtonType.Circle).backgroundColor('#F0F0F0').width(40).height(40)
@@ -307,7 +298,7 @@ export struct GuideView {
 
         Row() {
           SymbolGlyph($r('sys.symbol.location_north_up_right_and_circle_dotted_fill')).fontColor(['#FF9500']).fontSize(14)
-          Text(this.currentCity).fontSize(14).fontWeight(FontWeight.Bold).margin({ left: 4 })  // 🔹 始终绑定 @State
+          Text(this.currentCity).fontSize(14).fontWeight(FontWeight.Bold).margin({ left: 4 })
         }
         .margin({ left: 10 }).padding({ left: 12, right: 12, top: 8, bottom: 8 })
         .backgroundColor('#CCFFFFFF').borderRadius(20)
