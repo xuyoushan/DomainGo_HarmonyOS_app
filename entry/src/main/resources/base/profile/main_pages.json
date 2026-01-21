@@ -18,6 +18,7 @@
     "pages/features/ScheduleView",
     "pages/features/GeoOrigin",
     "pages/features/VenueBookingView",
-    "pages/features/VenueWebView"
+    "pages/features/VenueWebView",
+    "pages/features/TravelServiceView"
   ]
 }

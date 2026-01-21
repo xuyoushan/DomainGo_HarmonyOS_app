@@ -4,6 +4,7 @@ import { MapComponent, map, mapCommon } from '@kit.MapKit';
 import type { AsyncCallback } from '@kit.BasicServicesKit';
 import { common, Want} from '@kit.AbilityKit';
 import { LocationManager, RealLocation } from '../../services/LocationManager';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 
 @Entry
 @Component
@@ -102,21 +103,43 @@ export struct GuideView {
     };
 
     if (this.mapController) {
-      this.mapController.animateCamera(map.newCameraPosition({ target, zoom: 15 }), 500);
+      // 建议 zoom 设为 16 或 17，这是查看城市路网的黄金级别
+      this.mapController.animateCamera(map.newCameraPosition({ target, zoom: 16.5, tilt: 45 }), 500);
     } else {
       this.mapCameraPosition.target = target;
+      this.mapCameraPosition.zoom = 17.5;
     }
 
     this.refreshMapElements();
   }
 
   private callback: AsyncCallback<map.MapComponentController> = (err, controller) => {
-    if (!err && controller) {
+    if (err) {
+      hilog.error(0x0000, 'MapStatus', 'MapComponent load failed: %{public}d', err.code);
+      promptAction.showToast({ message: `地图加载失败: ${err.code}` });
+      return;
+    }
+
+    if (controller) {
       this.mapController = controller;
+      hilog.info(0x0000, 'MapStatus', 'MapController ready. Enabling Traffic and Layers...');
+
+      // 🔹 开启详细路网的关键开关
+      this.mapController.setTrafficEnabled(true); // 开启路况（路网颜色更丰富）
+      this.mapController.setBuildingEnabled(true); // 开启3D建筑
+      this.mapController.setMapType(1);
       this.mapController.setMyLocationEnabled(true);
       this.refreshMapElements();
+
+      // 🔹 延迟检测：如果2秒后还是白屏，通常是鉴权失败
+      setTimeout(() => {
+        hilog.info(0x0000, 'MapStatus', 'If map is still blank, check SHA256 and JSON file.');
+      }, 2000);
+
+      hilog.info(0x0000, 'MapStatus', '地图控制器初始化完成');
     }
   };
+
 
   private refreshMapElements() {
     if (!this.mapController) return;

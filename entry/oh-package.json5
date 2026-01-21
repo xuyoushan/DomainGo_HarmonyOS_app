@@ -6,9 +6,6 @@
   "author": "",
   "license": "",
   "dependencies": {
-//    "@kit.MapKit": "latest",
-//    "@kit.BasicServicesKit": "latest",
-//    "@kit.ArkUI": "latest"
+    "@hw-agconnect/auth-ohos": "1.1.3"
   }
 }
-

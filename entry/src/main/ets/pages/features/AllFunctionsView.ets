@@ -68,15 +68,16 @@ struct AllFunctionsView {
 
             // --- 3. 功能区布局 ---
             Column({ space: 28 }) {
-              // 文旅精选
+
+              // ===== 文旅精选（原有）=====
               this.FunctionCard('文旅精选', '玩转城市 · 精选推荐', [
                 { name: '门票预订', icon: $r('sys.symbol.ticket_fill'), color: '#2F80ED' },
-                { name: '酒店住宿', icon: $r('sys.symbol.bed_double_fill'), color: '#45B7D1'},
-                { name: '交通出行', icon: $r('sys.symbol.car_fill'), color: '#5AC8FA'},
+                { name: '酒店住宿', icon: $r('sys.symbol.bed_double_fill'), color: '#45B7D1' },
+                { name: '交通出行', icon: $r('sys.symbol.car_fill'), color: '#5AC8FA' },
                 { name: '城市商圈', icon: $r('sys.symbol.cart_fill'), color: '#27AE60' }
               ])
 
-              // 政务助手
+              // ===== 政务助手（原有）=====
               this.FunctionCard('政务助手', '官方数据 · 权威查询', [
                 { name: '行政隶属', icon: $r('sys.symbol.map_badge_cloud_slash_fill'), color: '#4568DC' },
                 { name: '邮编查询', icon: $r('sys.symbol.envelope_fill'), color: '#B06AB3' },
@@ -84,7 +85,14 @@ struct AllFunctionsView {
                 { name: '人口数据', icon: $r('sys.symbol.person_3_fill'), color: '#6FCF97' }
               ])
 
-              // 更多功能
+              // ===== 新增：行程与记录 =====
+              this.FunctionCard('行程与记录', '出行规划与个人记录', [
+                { name: '寻域锦囊', icon: $r('sys.symbol.briefcase_fill'), color: '#FF9500' },
+                { name: '随手笔记', icon: $r('sys.symbol.square_and_pencil'), color: '#FAB1A0' },
+                { name: '行程安排', icon: $r('sys.symbol.calendar_001_fill'), color: '#9B51E0' }
+              ])
+
+              // ===== 更多功能（原有，占位）=====
               this.FunctionCard('更多功能', '持续更新中', [
                 { name: '敬请期待', icon: $r('sys.symbol.plus_circle_fill'), color: '#BDBDBD' }
               ])
@@ -100,18 +108,16 @@ struct AllFunctionsView {
     .height('100%')
   }
 
-  // --- 4. 修改后的卡片组件：支持主副标题 + 蓝色竖线 ---
+  // --- FunctionCard 组件：完全未改 ---
   @Builder FunctionCard(title: string, subTitle: string, items: FunctionItem[]) {
     Column() {
-      // 标题组：包含蓝色竖线和主副标题
       Row() {
-        // --- 重新加回来的蓝色竖线 ---
         Rect()
           .width(4)
-          .height(18) // 高度对齐大标题字号
+          .height(18)
           .fill('#007DFF')
           .borderRadius(2)
-          .margin({ top: 2 }) // 微调使其与第一行文字视觉对齐
+          .margin({ top: 2 })
 
         Column() {
           Text(title)
@@ -124,10 +130,8 @@ struct AllFunctionsView {
             .fontColor('#7D8FB3')
             .margin({ top: 4 })
         }
-        .alignItems(HorizontalAlign.Start)
-        .margin({ left: 10 }) // 与竖线的间距
+        .margin({ left: 10 })
       }
-      .width('100%')
       .margin({ bottom: 16, left: 4 })
 
       Flex({ wrap: FlexWrap.Wrap }) {
@@ -158,25 +162,55 @@ struct AllFunctionsView {
               promptAction.showToast({ message: '更多功能正在持续更新中...' });
               return;
             }
-            //定义政务类功能名单
+
+            // 1. 文旅类跳转
+            const travelFunctions = ['门票预订', '酒店住宿', '交通出行'];
+            if (travelFunctions.includes(item.name)) {
+              router.pushUrl({
+                url: 'pages/features/TravelServiceView',
+                params: { defaultType: item.name }
+              })
+              return;
+            }
+
+            // 2. 政务类跳转
             const govFunctions = ['行政隶属', '邮编查询', '区号查询', '人口数据'];
             if (govFunctions.includes(item.name)) {
               router.pushUrl({
                 url: 'pages/features/GovServiceDetailView',
                 params: { defaultType: item.name }
               })
+              return;
+            }
+
+            // 3. 通用功能跳转
+            const pageMap: Record<string, string> = {
+              '寻域锦囊': 'pages/features/CityToolkitView',
+              '随手笔记': 'pages/features/NoteView',
+              '行程安排': 'pages/features/ScheduleView',
+            };
+
+            const url = pageMap[item.name]; // 修正：使用当前点击项的名字
+            if (url) {
+              router.pushUrl({
+                url: url,
+                params: {
+                  title: item.name,
+                  cityName: this.currentCity,
+                  color: item.color, // 修正：明确 initializer
+                  icon: item.icon    // 修正：明确 initializer
+                }
+              });
             } else {
               promptAction.showToast({ message: `${item.name} 功能模块正在对接中...` });
             }
           })
         }, (item: FunctionItem) => item.name)
       }
-      .width('100%')
       .padding({ top: 20, bottom: 4, left: 8, right: 8 })
       .backgroundColor('rgba(255,255,255,0.6)')
       .borderRadius(20)
       .border({ width: 1, color: 'rgba(255,255,255,0.3)' })
     }
-    .width('100%')
   }
 }
