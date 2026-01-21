@@ -27,13 +27,15 @@ export struct ExploreView {
   @State hotTopics: HotTopic[] = [];
   @State newsList: string[] = ["正在连接文旅大数据中心..."]; // 初始文案
   @State isCitySwitching: boolean = false
-  // ------------------ 新增：引导流转全量状态 (ExploreGuideWrapper 迁移) ------------------
   @State currentStage: 'welcome' | 'stepGuide' | 'teaching' | 'full' = 'welcome'
   @State guideStepIndex: number = 0
   @State displayedText: string = ''     // 当前逐字显示的文案
   @State isTyping: boolean = false      // 是否正在逐字播放
-  private timerId: number = -1          // 补全定时器ID声明
+  @State guideOpacity: number = 1.0;
+  @StorageLink('hasCompletedGuide') hasCompletedGuide: boolean = false;
+  @State isReady: boolean = false; // 👈 新增：标记初始化是否完成
 
+  private timerId: number = -1          // 补全定时器ID声明
 
   private context = getContext(this) as common.UIAbilityContext;
 
@@ -83,18 +85,34 @@ export struct ExploreView {
     }
   }
 
+  private enterMainPage() {
+    this.hasCompletedGuide = true;
+    this.isReady = false;
+    animateTo({ duration: 600 }, () => {
+      this.currentStage = 'full';
+    })
+  }
+
   getCityConfig(): CityExploreConfig {
     return CITY_EXPLORE_MAP[this.currentCity] || DEFAULT_EXPLORE_DATA;
   }
 
   aboutToAppear() {
-    const params = router.getParams() as ExploreGuideParams
+    AppStorage.setOrCreate('hasCompletedGuide', false);
 
-    if (params?.skipGuide === true) {
-      this.currentStage = 'full'
-      return
-    }
-    // 在生命周期中计算一次高度，而不是在 build 中实时计算
+    PersistentStorage.persistProp('hasCompletedGuide', false);
+    setTimeout(() => {
+      const isFinished = AppStorage.get<boolean>('hasCompletedGuide') ?? false;
+      const params = router.getParams() as ExploreGuideParams;
+
+      if (isFinished || params?.skipGuide) {
+        this.currentStage = 'full';
+      } else {
+        this.currentStage = 'welcome';
+      }
+      this.isReady = true; // 👈 此时才允许 bindContentCover 工作
+    }, 50);
+
     try {
       const displayData: display.Display = display.getDefaultDisplaySync();
       const screenWidthVp = px2vp(displayData.width);
@@ -140,7 +158,6 @@ export struct ExploreView {
     this.currentCity = city
     AppStorage.setOrCreate('currentCity', city)
 
-    // 给人类一点“系统反应时间”
     await new Promise<void>((resolve) => {
       setTimeout(() => {
         resolve()
@@ -200,7 +217,6 @@ export struct ExploreView {
     // --- 💡 方案开关 ---
     const USE_REAL_CRAWLER = true;  // 模式A：后端抓取（做PPT/录视频时开启）
     // const USE_REAL_CRAWLER = false; // 模式B：本地数据（现场演示/提交代码时开启）
-    // ----------------
 
     if (!USE_REAL_CRAWLER) {
       // 【方案二：调用本地数据】—— 模拟一个加载过程，显得更真实
@@ -222,7 +238,6 @@ export struct ExploreView {
     }, 3000);
 
     let httpRequest = http.createHttp();
-    // 注意：这里记得换成你真实的电脑IP
     const url = `http://192.168.103.83:5000/get_news/${encodeURIComponent(this.currentCity)}`;
     try {
       let response = await httpRequest.request(url, {
@@ -291,122 +306,178 @@ export struct ExploreView {
   }
 
   build() {
+    Column() {
+      // 始终渲染主页内容，它会被下方的 bindContentCover 盖住
+      this.MainExploreContent()
+    }
+    .width('100%')
+    .height('100%')
+    .bindContentCover(this.isReady && this.currentStage !== 'full', this.GuideModalBuilder(), {
+      modalTransition: ModalTransition.NONE,
+      onWillDismiss: () => {
+      }
+    })
+  }
+
+  // 将引导逻辑全部打包进这个 Builder
+  @Builder GuideModalBuilder() {
     Stack() {
-      // 1. 背景层
+      Rect().width('100%').height('100%').fill(Color.Black)
+      // 背景
       if (this.currentStage === 'welcome' || this.currentStage === 'stepGuide') {
         this.BackgroundAtmosphere()
       }
+      if (this.currentStage === 'teaching') {
+        Rect().width('100%').height('100%').fill('#F8F8F8')
+      }
 
-      // 2. 内容层 (修正：width/height/alignItems 从参数移至链式调用)
+      // UI内容
       Column() {
-        // 第一阶段：欢迎页
         if (this.currentStage === 'welcome') {
-          Stack() {
-            // 1. 背景大图（利用你现有的资源，不加模糊，保持清晰感）
-            Image($r('app.media.start'))
-              .width('100%')
-              .height('100%')
-              .objectFit(ImageFit.Cover)
-
-            // 2. 渐变遮罩，让底部文字浮现
-            Column()
-              .width('100%')
-              .height('100%')
-              .linearGradient({
-                direction: GradientDirection.Bottom,
-                colors: [['#20000000', 0.0], ['#80000000', 1.0]]
-              })
-
-            // 3. 文字与入口
-            Column() {
-              // 城市标语
-              Text('寻 · 域')
-                .fontSize(48)
-                .fontWeight(FontWeight.Lighter)
-                .fontColor(Color.White)
-                .letterSpacing(15) // 增加字间距，更有艺术感
-                .margin({ bottom: 10 })
-
-              Text('—— 触摸每一座城市的温度 ——')
-                .fontSize(14)
-                .fontColor('#CCFFFFFF')
-                .letterSpacing(2)
-                .margin({ bottom: 80 })
-
-              // 探索入口
-              Button() {
-                Row({ space: 8 }) {
-                  Text('开启旅程').fontColor(Color.White).fontSize(16).fontWeight(FontWeight.Medium)
-                  SymbolGlyph($r('sys.symbol.arrow_right')).fontSize(18).fontColor([Color.White])
-                }
-              }
-              .width(200)
-              .height(56)
-              .backgroundColor('rgba(255,255,255,0.15)') // 极简半透明背景
-              .backgroundBlurStyle(BlurStyle.Thin)      // 加上毛玻璃效果
-              .borderRadius(28)
-              .border({ width: 1, color: 'rgba(255,255,255,0.3)' }) // 细边框质感
-              .onClick(() => {
-                this.currentStage = 'stepGuide'
-                this.guideStepIndex = 0
-                this.playStepText()
-              })
-            }
-            .width('100%')
-            .padding({ bottom: 100 })
-            .alignItems(HorizontalAlign.Center)
-            .justifyContent(FlexAlign.End) // 内容沉在底部，更有意境
-          }
-          .width('100%')
-          .height('100%')
-        }
-
-        // 第二阶段：分步文案引导
-        else if (this.currentStage === 'stepGuide') {
-          Stack() {
-            Column() {
-              Text(this.displayedText).fontSize(20).fontColor(Color.White).lineHeight(28).textAlign(TextAlign.Center).margin({ left: 24, right: 24, bottom: 30 })
-              if (!this.isTyping) {
-                Button(this.guideStepIndex < this.getGuideSteps().length - 1 ? '下一步' : '开始探索')
-                  .width(180).height(44).backgroundColor('#FF7F50').fontColor('#333').borderRadius(22)
-                  .onClick(() => this.nextStep(this.getGuideSteps().length))
-              }
-            }
-            .alignItems(HorizontalAlign.Center)
-            .justifyContent(FlexAlign.Center)
-            .width('100%')
-            .height('100%')
-            .onClick(() => this.nextStep(this.getGuideSteps().length))
-          }
-          .width('100%')
-          .height('100%')
-        }
-
-        // 第三阶段：教学态
-        else if (this.currentStage === 'teaching') {
-          Column({ space: 20 }) {
-            Text('先从城市印象开始了解这座城市').fontSize(16).fontColor('#666')
-            this.HeroArchiveCard()
-            Button('展开完整内容').onClick(() => this.currentStage = 'full')
-          }
-          .padding(16)
-          .width('100%')
-          .height('100%')
-          .justifyContent(FlexAlign.Center)
-          .backgroundColor('#F8F8F8') // 进入教学态，切回明亮背景
-        }
-
-        // 第四阶段：完整 ExploreView 内容
-        else if (this.currentStage === 'full') {
-          this.MainExploreContent()
+          this.WelcomeGuideUI()
+        } else if (this.currentStage === 'stepGuide') {
+          this.StepGuideUI()
+        } else if (this.currentStage === 'teaching') {
+          this.TeachingUI()
         }
       }
       .width('100%')
       .height('100%')
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     }
     .width('100%')
     .height('100%')
+    .backgroundColor(Color.Black)
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+  }
+
+  @Builder WelcomeGuideUI() {
+    Stack() {
+      // 1. 背景大图
+      Image($r('app.media.start'))
+        .width('100%')
+        .height('100%')
+        .objectFit(ImageFit.Cover)
+      // 2. 渐变遮罩
+      Column()
+        .width('100%')
+        .height('100%')
+        .linearGradient({
+          direction: GradientDirection.Bottom,
+          colors: [['#20000000', 0.0], ['#80000000', 1.0]]
+        })
+      // 3. 文字与入口
+      Column() {
+        Text('寻 · 域')
+          .fontSize(48)
+          .fontWeight(FontWeight.Lighter)
+          .fontColor(Color.White)
+          .letterSpacing(15)
+          .margin({ bottom: 10 })
+
+        Text('—— 触摸每一座城市的温度 ——')
+          .fontSize(14)
+          .fontColor('#CCFFFFFF')
+          .letterSpacing(2)
+          .margin({ bottom: 80 })
+
+        Button() {
+          Row({ space: 8 }) {
+            Text('开启旅程').fontColor(Color.White).fontSize(16).fontWeight(FontWeight.Medium)
+            SymbolGlyph($r('sys.symbol.arrow_right')).fontSize(18).fontColor([Color.White])
+          }
+        }
+        .width(200)
+        .height(56)
+        .backgroundColor('rgba(255,255,255,0.15)')
+        .backgroundBlurStyle(BlurStyle.Thin)
+        .borderRadius(28)
+        .border({ width: 1, color: 'rgba(255,255,255,0.3)' })
+        .onClick(() => {
+          this.currentStage = 'stepGuide'
+          this.guideStepIndex = 0
+          this.playStepText()
+        })
+      }
+      .width('100%')
+      .padding({ bottom: 100 })
+      .alignItems(HorizontalAlign.Center)
+      .justifyContent(FlexAlign.End)
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  @Builder StepGuideUI() {
+    Stack() {
+      Column() {
+        Text(this.displayedText).fontSize(20)
+          .fontWeight(FontWeight.Lighter).fontColor(Color.White)
+          .lineHeight(32).textAlign(TextAlign.Center)
+          .margin({ left: 24, right: 24, bottom: 30 }).textShadow({ radius: 4, color: '#80000000', offsetY: 2 })
+        if (!this.isTyping) {
+          Button({ type: ButtonType.Capsule, stateEffect: true }) {
+            Text(this.guideStepIndex < this.getGuideSteps().length - 1 ? '下一步' : '开始探索')
+              .fontSize(16)
+              .fontColor(Color.White)
+              .fontWeight(FontWeight.Medium)
+              .letterSpacing(2) // 👈 现在这里不会报错了
+          }
+          .width(200)
+            .height(56)
+            // 使用稍微带点深度的珊瑚橙，并增加微渐变
+            .linearGradient({
+              direction: GradientDirection.Right,
+              colors: [['#FF7F50', 0.0], ['#FF6B6B', 1.0]]
+            })
+          .border({ width: 1, color: 'rgba(255, 255, 255, 0.5)' })
+            .fontWeight(FontWeight.Medium)
+            .fontColor(Color.White)
+            .fontSize(16)
+          .backgroundBlurStyle(BlurStyle.Thin)
+          // 3. 增强边框：半透明物体必须有亮边才显精致
+          .border({ width: 1, color: 'rgba(255, 255, 255, 0.5)' })
+            // 核心质感：磨砂边缘效果
+            .borderRadius(25)
+            .shadow({
+              radius: 15,
+              color: 'rgba(255, 107, 107, 0.4)', // 按钮同色系的呼吸投影
+              offsetY: 8
+            })
+            // 点击时的缩放动效（质感的核心在于反馈）
+            .scale({ x: this.scaleValue, y: this.scaleValue })
+            .onTouch((event: TouchEvent) => {
+              if (event.type === TouchType.Down) {
+                animateTo({ duration: 100 }, () => { this.scaleValue = 0.95 })
+              } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                animateTo({ duration: 100 }, () => { this.scaleValue = 1.0 })
+              }
+            })
+            .onClick(() => this.nextStep(this.getGuideSteps().length))
+        }
+      }
+      .alignItems(HorizontalAlign.Center)
+      .justifyContent(FlexAlign.Center)
+      .width('100%')
+      .height('100%')
+      .onClick(() => this.nextStep(this.getGuideSteps().length))
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  @Builder TeachingUI() {
+    Column({ space: 20 }) {
+      Text('先从城市印象开始了解这座城市').fontSize(16).fontColor('#666')
+      this.HeroArchiveCard()
+      Button('展开完整内容').onClick(() => {
+        this.enterMainPage();
+      })
+    }
+    .padding(16)
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .backgroundColor('#F8F8F8')
   }
 
   @Builder MainExploreContent() {
@@ -581,7 +652,7 @@ export struct ExploreView {
         .height('100%')
         .objectFit(ImageFit.Cover) // ✅ 关键：确保横图在纵屏下自动中心裁剪
         .blur(25)                 // ✅ 稍微加大模糊，利用云层的金色形成光晕
-        .opacity(0.5)              // 保持半透明
+        .opacity(0.6)              // 保持半透明
         .scale({ x: 1.2, y: 1.2 }) // ✅ 稍微加大初始比例，给 Ken Burns 效果留足裁剪空间
         .animation({ duration: 12000, iterations: -1, curve: Curve.Linear }) // 极慢速移动
 
@@ -592,7 +663,7 @@ export struct ExploreView {
         .fill(Color.Black)
         .opacity(0.15)
     }.width('100%').height('100%')
-
+    .hitTestBehavior(HitTestMode.None) // 👈 加上这一行，确保背景不拦截点击事件
   }
 
   @Builder BannerImageItem(title: string, img: Resource) {
