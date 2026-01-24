@@ -1,6 +1,6 @@
 // pages/CityHistoryPage.ets
 import { CITY_EXPLORE_MAP, HistoryNode } from '../../models/HistoryData'
-import { StarChartProvider, StarDust, VisualNode } from '../utils/StarChartUtils'
+import { StarChartProvider, StarDust, VisualNode } from '../../services/StarChartUtils'
 import vibrator from '@ohos.vibrator';
 
 @Entry

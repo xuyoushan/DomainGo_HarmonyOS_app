@@ -1,6 +1,6 @@
 import { webview } from '@kit.ArkWeb'
 import { router, promptAction, componentSnapshot } from '@kit.ArkUI'
-import { Venue } from '../../models/VenueData'
+import { Venue } from '../models/VenueData'
 import { image } from '@kit.ImageKit'
 import { fileIo } from '@kit.CoreFileKit'
 import { photoAccessHelper } from '@kit.MediaLibraryKit'

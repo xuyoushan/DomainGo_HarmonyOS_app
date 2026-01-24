@@ -1,7 +1,7 @@
 import { router, promptAction } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
-import { CITY_VENUES_MAP, Venue } from '../../models/VenueData';
-import { EmptyComponent } from '../../models/EmptyComponent'; // 导入空状态组件
+import { CITY_VENUES_MAP, Venue } from '../../../models/VenueData';
+import { EmptyComponent } from '../../../models/EmptyComponent'; // 导入空状态组件
 
 // 解决 arkts-no-obj-literals-as-types 报错
 interface NameResult {

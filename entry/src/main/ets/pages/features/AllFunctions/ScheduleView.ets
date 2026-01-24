@@ -6,7 +6,7 @@ import preferences from '@ohos.data.preferences';
 import http from '@ohos.net.http';
 import { formProvider, formBindingData } from '@kit.FormKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit'; // 新增：相册选择器
-import { LocationManager } from '../../services/LocationManager';
+import { LocationManager } from '../../../services/LocationManager';
 
 // --- 1. 定义日程接口：增加截图凭证字段 ---
 interface MySchedule {

@@ -1,6 +1,6 @@
 import { router } from '@kit.ArkUI';
 import http from '@ohos.net.http';
-import { CITY_GOV_DATA, DistrictDetail } from '../../models/CityDataModel';
+import { CITY_GOV_DATA, DistrictDetail } from '../../../models/CityDataModel';
 
 //高德 POI 接口数据结构
 interface AmapPoi {

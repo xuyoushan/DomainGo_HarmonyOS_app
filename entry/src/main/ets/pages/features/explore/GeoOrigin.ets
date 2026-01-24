@@ -1,7 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit'; // 导入原生网络库
 import { BusinessError } from '@kit.BasicServicesKit';
-import { GEO_ORIGIN_DATA, CityStory, DistrictStory } from '../../models/DistrictStoryData';
+import { GEO_ORIGIN_DATA, CityStory, DistrictStory } from '../../../models/DistrictStoryData';
 
 /* ===== 智谱 GLM 响应结构（最小可用版） ===== */
 interface GLMMessage {

@@ -1,20 +1,12 @@
 import router from '@ohos.router';
 import http from '@ohos.net.http';
 import { PostItem } from '../../models/PostItem';
-import { PROVINCE_CITY_DATA } from '../../models/CityData';
+// import { PROVINCE_CITY_DATA } from '../../models/CityData';
 import photoAccessHelper from '@ohos.file.photoAccessHelper';
-// 修正：在 API 12 中推荐使用 @kit 导入或确保引用路径正确
 import { promptAction } from '@kit.ArkUI';
 
-interface AmapPoi {
-  name: string;
-  address: string;
-  adname: string;
-}
-interface AmapResponse {
-  status: string;
-  pois: AmapPoi[];
-}
+interface AmapPoi { name: string;address: string;adname: string; }
+interface AmapResponse { status: string;pois: AmapPoi[]; }
 
 @Entry
 @Component
@@ -23,7 +15,6 @@ struct PostDynamicView {
   @StorageLink('currentCity') currentCity: string = '武汉市';
   @State selectedLocation: string = '选择位置';
   @StorageLink('mainIndex') mainIndex: number = 0;
-
   @State selectedImages: (string | Resource)[] = [];
   @State tags: string[] = ['旅行', '美食', '探店', '打卡'];
   @State selectedTags: string[] = [];
@@ -43,7 +34,6 @@ struct PostDynamicView {
       let photoSelectResult = await photoPicker.select(photoSelectOptions);
 
       if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
-        // 这里的 push 不会触发 Grid 刷新，需要通过解构重新赋值
         this.selectedImages = [...this.selectedImages, ...photoSelectResult.photoUris];
       }
     } catch (err) {

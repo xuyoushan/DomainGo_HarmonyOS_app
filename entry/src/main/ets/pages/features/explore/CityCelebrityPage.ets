@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI'
-import { Celebrity, CITY_CELEBRITY_MAP } from '../../models/CelebrityData'
+import { Celebrity, CITY_CELEBRITY_MAP } from '../../../models/CelebrityData'
 
 @Entry
 @Component

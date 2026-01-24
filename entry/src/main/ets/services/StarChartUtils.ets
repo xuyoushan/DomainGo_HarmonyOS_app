@@ -1,5 +1,5 @@
 // utils/StarChartUtils.ets
-import { HistoryNode } from '../../models/HistoryData'
+import { HistoryNode } from '../models/HistoryData'
 
 // 显式定义点接口
 export interface Point {

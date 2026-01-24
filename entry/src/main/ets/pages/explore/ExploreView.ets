@@ -3,10 +3,10 @@ import { common } from '@kit.AbilityKit';
 import http from '@ohos.net.http';
 import { PROVINCE_CITY_DATA } from '../../models/CityData';
 import { CITY_BANNER_CONFIG, CityBanner } from '../../models/CityBannerData';
-import { promptAction, router } from '@kit.ArkUI';
+import { promptAction, router, display } from '@kit.ArkUI';
 import { CITY_ROUTES, TravelRoute } from '../../models/RouteData';
 import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA, CityExploreConfig } from '../../models/ExploreCityData';
-import { display } from '@kit.ArkUI';
+import { PreferenceManager } from '../../services/PreferenceManager';
 
 interface WeatherNow { temperature: string; text: string; }
 interface WeatherResult { now: WeatherNow; }
@@ -14,7 +14,6 @@ interface WeatherResponse { results: WeatherResult[]; }
 interface HotTopic { title: string; color: string; count: string; }
 interface TopicTemplate { suffix: string; color: string; }
 interface MyNewsResponse { code: number; city: string; news: string[]; }
-interface ExploreGuideParams { skipGuide?: boolean }
 
 @Component
 export struct ExploreView {
@@ -22,20 +21,22 @@ export struct ExploreView {
   @StorageLink('currentWeather') weatherInfo: string = '...';
   @State weatherText: string = '阴';
   @State searchText: string = '';
-  @State scaleValue: number = 1.0; // 用于缩放动画
+  @State scaleValue: number = 1.0;
   @State bannerHeight: number = 200;
   @State hotTopics: HotTopic[] = [];
-  @State newsList: string[] = ["正在连接文旅大数据中心..."]; // 初始文案
+  @State newsList: string[] = ["正在连接文旅大数据中心..."];
   @State isCitySwitching: boolean = false
-  @State currentStage: 'welcome' | 'stepGuide' | 'teaching' | 'full' = 'welcome'
+  @State currentStage: 'welcome' | 'stepGuide' | 'full' = 'welcome'
   @State guideStepIndex: number = 0
-  @State displayedText: string = ''     // 当前逐字显示的文案
-  @State isTyping: boolean = false      // 是否正在逐字播放
+  @State displayedText: string = ''
+  @State isTyping: boolean = false
   @State guideOpacity: number = 1.0;
   @StorageLink('hasCompletedGuide') hasCompletedGuide: boolean = false;
-  @State isReady: boolean = false; // 👈 新增：标记初始化是否完成
+  @State isReady: boolean = true;
+  @StorageLink('show_guide_manual') show_guide_manual: boolean = false;
+  @State isDataLoaded: boolean = false;
 
-  private timerId: number = -1          // 补全定时器ID声明
+  private timerId: number = -1
 
   private context = getContext(this) as common.UIAbilityContext;
 
@@ -43,7 +44,7 @@ export struct ExploreView {
     return [
       `欢迎来到寻域之旅。\n在这座城市，每条街道、每幢建筑、每个人的笑声里，都藏着独特的故事。`,
       `这里有被时间遗忘的老巷，有被记忆铭刻的历史建筑。\n走进去，你会发现那些平凡角落里非凡的秘密。`,
-      `在这里，你可以慢慢品味城市的味道。\n无论是街头小吃的香气，还是老茶馆里的谈笑声，都在讲述属于城市的温度。`,
+      `在这里，你可以慢慢品味城市的味道。\n无论是街头小吃的香气，\n还是老茶馆里的谈笑声，\n都在讲述属于城市的温度。`,
       `每一座城市都有自己的节奏和脉络。\n历史、文化、生活在这里交织，每一步行走，都是一次新的发现。`,
       `准备好了吗？\n让我们从这里开始，慢慢触摸城市的故事。\n一场探索之旅即将在你的指尖展开。`,
       `点击“开始探索”，\n你将进入城市教学模式，了解每个功能、每条路线、每个故事的精华。`
@@ -80,16 +81,21 @@ export struct ExploreView {
     if (this.guideStepIndex < total - 1) {
       this.guideStepIndex++;
       this.playStepText();
-    } else {
-      this.currentStage = 'teaching';
     }
   }
 
-  private enterMainPage() {
-    this.hasCompletedGuide = true;
-    this.isReady = false;
-    animateTo({ duration: 600 }, () => {
-      this.currentStage = 'full';
+  private async enterMainPage() {
+    await PreferenceManager.put(this.context, 'hasCompletedGuide', true);
+    await PreferenceManager.put(this.context, 'show_guide_manual', false);
+    AppStorage.setOrCreate('show_guide_manual', false);
+    animateTo({
+      duration: 888,
+      curve: Curve.EaseInOut,
+      onFinish: () => {
+        this.currentStage = 'full';
+      }
+    }, () => {
+      this.isReady = false;
     })
   }
 
@@ -98,27 +104,13 @@ export struct ExploreView {
   }
 
   aboutToAppear() {
-    AppStorage.setOrCreate('hasCompletedGuide', false);
-
-    PersistentStorage.persistProp('hasCompletedGuide', false);
-    setTimeout(() => {
-      const isFinished = AppStorage.get<boolean>('hasCompletedGuide') ?? false;
-      const params = router.getParams() as ExploreGuideParams;
-
-      if (isFinished || params?.skipGuide) {
-        this.currentStage = 'full';
-      } else {
-        this.currentStage = 'welcome';
-      }
-      this.isReady = true; // 👈 此时才允许 bindContentCover 工作
-    }, 50);
-
+    this.currentStage = 'welcome';
+    this.isReady = true;
     try {
       const displayData: display.Display = display.getDefaultDisplaySync();
-      const screenWidthVp = px2vp(displayData.width);
-      this.bannerHeight = screenWidthVp * 9 / 16;
+      this.bannerHeight = px2vp(displayData.width) * 9 / 16;
     } catch (e) {
-      this.bannerHeight = 200; // 兜底高度
+      this.bannerHeight = 200;
     }
   }
 
@@ -217,7 +209,6 @@ export struct ExploreView {
     // --- 💡 方案开关 ---
     const USE_REAL_CRAWLER = true;  // 模式A：后端抓取（做PPT/录视频时开启）
     // const USE_REAL_CRAWLER = false; // 模式B：本地数据（现场演示/提交代码时开启）
-
     if (!USE_REAL_CRAWLER) {
       // 【方案二：调用本地数据】—— 模拟一个加载过程，显得更真实
       this.newsList = ["正在连接文旅数据中心...", "正在同步城市快报..."];
@@ -306,29 +297,30 @@ export struct ExploreView {
   }
 
   build() {
-    Column() {
-      // 始终渲染主页内容，它会被下方的 bindContentCover 盖住
-      this.MainExploreContent()
+    Stack() {
+      if (!this.isReady) {
+        Column() {
+          this.MainExploreContent()
+        }
+        .width('100%')
+        .height('100%')
+      }
+      if (this.isReady && this.currentStage !== 'full') {
+        this.GuideContent()
+      }
     }
     .width('100%')
     .height('100%')
-    .bindContentCover(this.isReady && this.currentStage !== 'full', this.GuideModalBuilder(), {
-      modalTransition: ModalTransition.NONE,
-      onWillDismiss: () => {
-      }
-    })
+    .backgroundColor(Color.White)
   }
 
-  // 将引导逻辑全部打包进这个 Builder
-  @Builder GuideModalBuilder() {
+  // 引导逻辑
+  @Builder GuideContent() {
     Stack() {
       Rect().width('100%').height('100%').fill(Color.Black)
       // 背景
       if (this.currentStage === 'welcome' || this.currentStage === 'stepGuide') {
         this.BackgroundAtmosphere()
-      }
-      if (this.currentStage === 'teaching') {
-        Rect().width('100%').height('100%').fill('#F8F8F8')
       }
 
       // UI内容
@@ -337,8 +329,6 @@ export struct ExploreView {
           this.WelcomeGuideUI()
         } else if (this.currentStage === 'stepGuide') {
           this.StepGuideUI()
-        } else if (this.currentStage === 'teaching') {
-          this.TeachingUI()
         }
       }
       .width('100%')
@@ -392,10 +382,19 @@ export struct ExploreView {
         .backgroundBlurStyle(BlurStyle.Thin)
         .borderRadius(28)
         .border({ width: 1, color: 'rgba(255,255,255,0.3)' })
-        .onClick(() => {
-          this.currentStage = 'stepGuide'
-          this.guideStepIndex = 0
-          this.playStepText()
+        .onClick(async () => {
+          const isFinished = await PreferenceManager.get(this.context, 'hasCompletedGuide', false) as boolean;
+          const isManualOpen = await PreferenceManager.get(this.context, 'show_guide_manual', false) as boolean;
+          console.info(`[ButtonCheck] 磁盘状态 - 已完成: ${isFinished}, 手动开关: ${isManualOpen}`);
+          if (isFinished && !isManualOpen) {
+            this.enterMainPage();
+          } else {
+            animateTo({ duration: 300 }, () => {
+              this.currentStage = 'stepGuide';
+            })
+            this.guideStepIndex = 0;
+            this.playStepText();
+          }
         })
       }
       .width('100%')
@@ -420,39 +419,41 @@ export struct ExploreView {
               .fontSize(16)
               .fontColor(Color.White)
               .fontWeight(FontWeight.Medium)
-              .letterSpacing(2) // 👈 现在这里不会报错了
+              .letterSpacing(2)
           }
           .width(200)
-            .height(56)
-            // 使用稍微带点深度的珊瑚橙，并增加微渐变
-            .linearGradient({
-              direction: GradientDirection.Right,
-              colors: [['#FF7F50', 0.0], ['#FF6B6B', 1.0]]
-            })
+          .height(56)
+          .linearGradient({
+            direction: GradientDirection.Right,
+            colors: [['#FF7F50', 0.0], ['#FF6B6B', 1.0]]
+          })
           .border({ width: 1, color: 'rgba(255, 255, 255, 0.5)' })
-            .fontWeight(FontWeight.Medium)
-            .fontColor(Color.White)
-            .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Color.White)
+          .fontSize(16)
           .backgroundBlurStyle(BlurStyle.Thin)
-          // 3. 增强边框：半透明物体必须有亮边才显精致
           .border({ width: 1, color: 'rgba(255, 255, 255, 0.5)' })
-            // 核心质感：磨砂边缘效果
-            .borderRadius(25)
-            .shadow({
-              radius: 15,
-              color: 'rgba(255, 107, 107, 0.4)', // 按钮同色系的呼吸投影
-              offsetY: 8
-            })
-            // 点击时的缩放动效（质感的核心在于反馈）
-            .scale({ x: this.scaleValue, y: this.scaleValue })
-            .onTouch((event: TouchEvent) => {
-              if (event.type === TouchType.Down) {
-                animateTo({ duration: 100 }, () => { this.scaleValue = 0.95 })
-              } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                animateTo({ duration: 100 }, () => { this.scaleValue = 1.0 })
-              }
-            })
-            .onClick(() => this.nextStep(this.getGuideSteps().length))
+          .borderRadius(25)
+          .shadow({
+            radius: 15,
+            color: 'rgba(255, 107, 107, 0.4)', // 按钮同色系的呼吸投影
+            offsetY: 8
+          })
+          .scale({ x: this.scaleValue, y: this.scaleValue })
+          .onTouch((event: TouchEvent) => {
+            if (event.type === TouchType.Down) {
+              animateTo({ duration: 100 }, () => { this.scaleValue = 0.95 })
+            } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+              animateTo({ duration: 100 }, () => { this.scaleValue = 1.0 })
+            }
+          })
+          .onClick(() => {
+            if (this.guideStepIndex < this.getGuideSteps().length - 1) {
+              this.nextStep(this.getGuideSteps().length);
+            } else {
+              this.enterMainPage();
+            }
+          })
         }
       }
       .alignItems(HorizontalAlign.Center)
@@ -463,21 +464,6 @@ export struct ExploreView {
     }
     .width('100%')
     .height('100%')
-  }
-
-  @Builder TeachingUI() {
-    Column({ space: 20 }) {
-      Text('先从城市印象开始了解这座城市').fontSize(16).fontColor('#666')
-      this.HeroArchiveCard()
-      Button('展开完整内容').onClick(() => {
-        this.enterMainPage();
-      })
-    }
-    .padding(16)
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .backgroundColor('#F8F8F8')
   }
 
   @Builder MainExploreContent() {
@@ -603,13 +589,11 @@ export struct ExploreView {
             .shadow({ radius: 20, color: 'rgba(0,0,0,0.05)', offsetY: 8 }) // 柔和浮空投影
           }
           .padding({ left: 16, right: 16 })
-
           // 节奏断点 / 弱提示文案
           Text('慢慢探索，每一次出行都有惊喜。').fontSize(12).fontColor('#999').margin({ top: 10, bottom: 8 })
 
           // 正在讨论
           Column() {
-            // 找到这行
             this.SectionHeader(`今天的${this.currentCity.replace('市','')}在讨论什么`)
             Scroll() {
               Row({ space: 12 }) {
@@ -618,9 +602,7 @@ export struct ExploreView {
                 }, (item: HotTopic) => item.title)
               }
             }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off)
-          }.opacity(this.isCitySwitching ? 0.5 : 1).enabled(!this.isCitySwitching) // 👈 防止切换中误触
-
-          // 路线推荐
+          }.opacity(this.isCitySwitching ? 0.5 : 1).enabled(!this.isCitySwitching)
           Column() {
             this.SectionHeader(`编辑推荐 · 行走路线`)
             if (CITY_ROUTES[this.currentCity]?.length > 0) {
@@ -654,16 +636,14 @@ export struct ExploreView {
         .blur(25)                 // ✅ 稍微加大模糊，利用云层的金色形成光晕
         .opacity(0.6)              // 保持半透明
         .scale({ x: 1.2, y: 1.2 }) // ✅ 稍微加大初始比例，给 Ken Burns 效果留足裁剪空间
-        .animation({ duration: 12000, iterations: -1, curve: Curve.Linear }) // 极慢速移动
-
-      // ✅ 建议加一层极其微弱的暗色蒙层，防止夕阳太亮盖住白色文字
+        .animation({ duration: 12000, iterations: -1, curve: Curve.Linear })
       Rect()
         .width('100%')
         .height('100%')
         .fill(Color.Black)
         .opacity(0.15)
     }.width('100%').height('100%')
-    .hitTestBehavior(HitTestMode.None) // 👈 加上这一行，确保背景不拦截点击事件
+    .hitTestBehavior(HitTestMode.None)
   }
 
   @Builder BannerImageItem(title: string, img: Resource) {
@@ -730,7 +710,7 @@ export struct ExploreView {
     .width('100%')
     .onClick(() => {
       router.pushUrl({
-        url: 'pages/features/DataDetailView',
+        url: 'pages/features/explore/DataDetailView',
         params: {
           title: '城市印象',
           cityName: this.currentCity,
@@ -748,15 +728,14 @@ export struct ExploreView {
       Text(title).fontSize(16).fontWeight(FontWeight.Bold).fontColor('#333')
       Text(desc).fontSize(10).fontColor('#999').margin({ top: 8 }).textAlign(TextAlign.Center)
       Blank()
-      // 装饰元素：像档案索引标签
       Rect().width(30).height(4).fill(color).borderRadius(2).opacity(0.3)
     }
     .height(180)
     .padding(20)
     .width('42%')
     .backgroundColor('#F8F9FF')
-    .borderRadius({ topLeft: 30, bottomRight: 30, topRight: 10, bottomLeft: 10 }) // ✅ 极具辨识度的非对称圆角
-    .onClick(() => router.pushUrl({ url: 'pages/features/GeoOrigin' }))
+    .borderRadius({ topLeft: 30, bottomRight: 30, topRight: 10, bottomLeft: 10 })
+    .onClick(() => router.pushUrl({ url: 'pages/features/explore/GeoOrigin' }))
   }
 
   // ⏳ 【横向脉络】历史轴线
@@ -771,14 +750,13 @@ export struct ExploreView {
     .padding(18)
     .backgroundColor('#F5FFF9')
     .borderRadius(16)
-    .onClick(() => router.pushUrl({ url: 'pages/features/CityHistoryPage' }))
+    .onClick(() => router.pushUrl({ url: 'pages/features/explore/CityHistoryPage' }))
   }
 
   // 🎨 【画廊卡片】景点/特产/文化
   @Builder GalleryCard(name: string, icon: Resource, color: string) {
     Column() {
       Stack() {
-        // 背景微圆环
         Circle({ width: 44, height: 44 })
           .fill(color)
           .opacity(0.08)
@@ -789,18 +767,18 @@ export struct ExploreView {
       Text(name)
         .fontSize(12).fontWeight(FontWeight.Medium).fontColor('#444').margin({ top: 8 })
     }
-    // 💡 关键：使用 25% 宽度实现四分并排
     .width('25%')
     .height(90)
     .justifyContent(FlexAlign.Center)
-    // 增加点击反馈逻辑
     .onClick(() => {
       const pageMap: Record<string, string> = {
-        '全部': 'pages/features/AllFunctionsView',
-        '场馆预约': 'pages/features/VenueBookingView'
+        '全部': 'pages/features/explore/AllFunctionsView',
+        '场馆预约': 'pages/features/explore/VenueBookingView',
+        '特产风味': 'pages/features/explore/SpecialtyView'
       };
-      if (pageMap[name]) {
-        router.pushUrl({ url: pageMap[name], params: { title: name, cityName: this.currentCity } });
+      if (pageMap[name]) {router.pushUrl({ url: pageMap[name], params: { cityName: this.currentCity } });
+      } else if (name === '文化资源') {
+        router.pushUrl({ url: 'pages/features/explore/CultureView', params: { cityName: this.currentCity } });
       } else {
         promptAction.showToast({ message: `${name} 功能开发中...` });
       }
@@ -816,10 +794,7 @@ export struct ExploreView {
     .padding(15)
     .backgroundColor('#FFF9F5')
     .borderRadius(16)
-    .onClick(() => {
-      // const pageMap: Record<string, string> = {
-      // };
-      promptAction.showToast({ message: `寻域 · ${this.currentCity}文化资源库建设中...` })
+    .onClick(() => {router.pushUrl({ url: 'pages/features/explores/CultureView', params: { cityName: this.currentCity } });
     })
   }
 

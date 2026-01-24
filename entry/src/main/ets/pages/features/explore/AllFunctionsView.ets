@@ -73,8 +73,7 @@ struct AllFunctionsView {
               this.FunctionCard('文旅精选', '玩转城市 · 精选推荐', [
                 { name: '门票预订', icon: $r('sys.symbol.ticket_fill'), color: '#2F80ED' },
                 { name: '酒店住宿', icon: $r('sys.symbol.bed_double_fill'), color: '#45B7D1' },
-                { name: '交通出行', icon: $r('sys.symbol.car_fill'), color: '#5AC8FA' },
-                { name: '城市商圈', icon: $r('sys.symbol.cart_fill'), color: '#27AE60' }
+                { name: '交通出行', icon: $r('sys.symbol.car_fill'), color: '#5AC8FA' }
               ])
 
               // ===== 政务助手（原有）=====
@@ -88,7 +87,7 @@ struct AllFunctionsView {
               // ===== 新增：行程与记录 =====
               this.FunctionCard('行程与记录', '出行规划与个人记录', [
                 { name: '寻域锦囊', icon: $r('sys.symbol.briefcase_fill'), color: '#FF9500' },
-                { name: '随手笔记', icon: $r('sys.symbol.square_and_pencil'), color: '#FAB1A0' },
+                { name: '灵感笔记', icon: $r('sys.symbol.square_and_pencil'), color: '#FAB1A0' },
                 { name: '行程安排', icon: $r('sys.symbol.calendar_001_fill'), color: '#9B51E0' }
               ])
 
@@ -167,7 +166,7 @@ struct AllFunctionsView {
             const travelFunctions = ['门票预订', '酒店住宿', '交通出行'];
             if (travelFunctions.includes(item.name)) {
               router.pushUrl({
-                url: 'pages/features/TravelServiceView',
+                url: 'pages/features/AllFunctions/TravelServiceView',
                 params: { defaultType: item.name }
               })
               return;
@@ -177,7 +176,7 @@ struct AllFunctionsView {
             const govFunctions = ['行政隶属', '邮编查询', '区号查询', '人口数据'];
             if (govFunctions.includes(item.name)) {
               router.pushUrl({
-                url: 'pages/features/GovServiceDetailView',
+                url: 'pages/features/AllFunctions/GovServiceDetailView',
                 params: { defaultType: item.name }
               })
               return;
@@ -185,9 +184,9 @@ struct AllFunctionsView {
 
             // 3. 通用功能跳转
             const pageMap: Record<string, string> = {
-              '寻域锦囊': 'pages/features/CityToolkitView',
-              '随手笔记': 'pages/features/NoteView',
-              '行程安排': 'pages/features/ScheduleView',
+              '寻域锦囊': 'pages/features/AllFunctions/CityToolkitView',
+              '灵感笔记': 'pages/features/AllFunctions/NoteView',
+              '行程安排': 'pages/features/AllFunctions/ScheduleView',
             };
 
             const url = pageMap[item.name]; // 修正：使用当前点击项的名字

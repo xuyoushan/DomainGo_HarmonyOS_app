@@ -1,12 +1,7 @@
 import { common, Want } from '@kit.AbilityKit';
 
 export class OpenExternalApp {
-  /**
-   * 统一跳转搜索方法
-   * @param context 明确上下文类型，解决 any 报错
-   * @param platform 平台名称
-   * @param keyword 搜索关键词
-   */
+
   static async startSearch(context: common.UIAbilityContext, platform: string, keyword: string) {
     let uri = '';
     const encodedKey = encodeURIComponent(keyword);
@@ -16,7 +11,6 @@ export class OpenExternalApp {
     } else if (platform === '高德') {
       uri = `amapuri://route/plan/?dname=${encodedKey}&dev=0&t=0`;
     } else if (platform === '携程') {
-      // 补全携程的深链接跳转协议
       uri = `ctrip://wireless/index?page=search&keyword=${encodedKey}`;
     }
 
@@ -29,7 +23,6 @@ export class OpenExternalApp {
     try {
       await context.startAbility(want);
     } catch (e) {
-      // 降级方案：唤起失败则尝试打开网页版
       OpenExternalApp.openWeb(context, platform, keyword);
     }
   }

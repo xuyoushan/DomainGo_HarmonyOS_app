@@ -78,7 +78,17 @@ export struct MineView {
           })
 
           ListItem() { this.MenuItem('发布记录', $r('sys.symbol.square_and_pencil')) }
-          ListItem() { this.MenuItem('系统设置', $r('sys.symbol.gearshape')) }
+          ListItem() {
+            this.MenuItem('系统设置', $r('sys.symbol.gearshape'))
+          }
+          .onClick(() => {
+            router.pushUrl({
+              url: 'pages/features/mine/settings'
+            }).catch((err: Error) => {
+              promptAction.showToast({ message: '跳转失败：路径未注册' });
+              console.error(`pushUrl failed, code is ${JSON.stringify(err)}`);
+            })
+          })
         }
         .width('92%')
         .backgroundColor('#FFFFFF')
@@ -87,7 +97,6 @@ export struct MineView {
         .padding({ left: 15, right: 15 })
         .divider({ strokeWidth: 1, color: '#F1F3F5', startMargin: 35 })
         .shadow({ radius: 15, color: '#15000000', offsetY: 8 })
-
         // 3. 我的勋章模块
         Column() {
           Row() {
@@ -113,7 +122,6 @@ export struct MineView {
           .scrollable(ScrollDirection.Horizontal)
           .scrollBar(BarState.Off)
         }
-
         // 4. 足迹地图卡片
         Column() {
           Text('足迹地图')
