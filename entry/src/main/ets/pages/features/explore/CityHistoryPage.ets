@@ -1,6 +1,6 @@
 // pages/CityHistoryPage.ets
-import { CITY_EXPLORE_MAP, HistoryNode } from '../../models/HistoryData'
-import { StarChartProvider, StarDust, VisualNode } from '../../services/StarChartUtils'
+import { CITY_EXPLORE_MAP, HistoryNode } from '../../../models/HistoryData'
+import { StarChartProvider, StarDust, VisualNode } from '../../../services/StarChartUtils'
 import vibrator from '@ohos.vibrator';
 
 @Entry
@@ -35,7 +35,6 @@ struct CityHistoryPage {
 
   // 统一数据初始化入口
   initUniverse() {
-    // 🔹 关键修正：必须使用处理后的 cityName 匹配字典，否则“武汉市”查不到数据
     const cityName = this.currentCity.replace('市', '');
     const rawData = CITY_EXPLORE_MAP[cityName];
 

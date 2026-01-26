@@ -3,7 +3,7 @@ import { common } from '@kit.AbilityKit';
 import http from '@ohos.net.http';
 import { PROVINCE_CITY_DATA } from '../../models/CityData';
 import { CITY_BANNER_CONFIG, CityBanner } from '../../models/CityBannerData';
-import { promptAction, router, display } from '@kit.ArkUI';
+import { promptAction, router, display, window } from '@kit.ArkUI';
 import { CITY_ROUTES, TravelRoute } from '../../models/RouteData';
 import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA, CityExploreConfig } from '../../models/ExploreCityData';
 import { PreferenceManager } from '../../services/PreferenceManager';
@@ -35,6 +35,7 @@ export struct ExploreView {
   @State isReady: boolean = true;
   @StorageLink('show_guide_manual') show_guide_manual: boolean = false;
   @State isDataLoaded: boolean = false;
+  @State isShowGuideModal: boolean = false;
 
   private timerId: number = -1
 
@@ -47,8 +48,7 @@ export struct ExploreView {
       `在这里，你可以慢慢品味城市的味道。\n无论是街头小吃的香气，\n还是老茶馆里的谈笑声，\n都在讲述属于城市的温度。`,
       `每一座城市都有自己的节奏和脉络。\n历史、文化、生活在这里交织，每一步行走，都是一次新的发现。`,
       `准备好了吗？\n让我们从这里开始，慢慢触摸城市的故事。\n一场探索之旅即将在你的指尖展开。`,
-      `点击“开始探索”，\n你将进入城市教学模式，了解每个功能、每条路线、每个故事的精华。`
-    ];
+      `点击“开始探索”\n去寻域\n去了解每个功能、每条路线、每个故事的精华。`];
   }
 
   private playStepText() {
@@ -88,6 +88,9 @@ export struct ExploreView {
     await PreferenceManager.put(this.context, 'hasCompletedGuide', true);
     await PreferenceManager.put(this.context, 'show_guide_manual', false);
     AppStorage.setOrCreate('show_guide_manual', false);
+    AppStorage.setOrCreate('welcomeFinished', true);
+
+    const win = await window.getLastWindow(this.context);
     animateTo({
       duration: 888,
       curve: Curve.EaseInOut,
@@ -96,6 +99,8 @@ export struct ExploreView {
       }
     }, () => {
       this.isReady = false;
+      win.setWindowSystemBarEnable(['status', 'navigation']);
+      win.setWindowLayoutFullScreen(false);
     })
   }
 
@@ -106,12 +111,25 @@ export struct ExploreView {
   aboutToAppear() {
     this.currentStage = 'welcome';
     this.isReady = true;
+    if (this.hasCompletedGuide) {
+      AppStorage.setOrCreate('welcomeFinished', true);
+    }
     try {
       const displayData: display.Display = display.getDefaultDisplaySync();
       this.bannerHeight = px2vp(displayData.width) * 9 / 16;
     } catch (e) {
       this.bannerHeight = 200;
     }
+    window.getLastWindow(this.context, (err: BusinessError, data: window.Window) => {
+      const errCode: number = err.code;
+      if (errCode) {
+        console.error('Failed to get window: ' + JSON.stringify(err));
+        return;
+      }
+      let win: window.Window = data;
+      win.setWindowLayoutFullScreen(true);
+      win.setWindowSystemBarEnable([]);
+    });
   }
 
   onPageShow() {
@@ -125,7 +143,6 @@ export struct ExploreView {
       this.timerId = -1
     }
   }
-
 
   async initLocation() {
     try {
@@ -256,21 +273,16 @@ export struct ExploreView {
     }
   }
 
-  // 统一的本地数据调用方法
   showLocalNews() {
     const localData = CITY_EXPLORE_MAP[this.currentCity] || DEFAULT_EXPLORE_DATA;
-    // 随机打乱一下，每次进来顺序不一样，显得是实时拉取的
     this.newsList = [...localData.news].sort(() => Math.random() - 0.5);
   }
 
-
   async fetchHotTopics() {
-    // 同样使用兜底数据获取关键词
     const config = CITY_EXPLORE_MAP[this.currentCity] || DEFAULT_EXPLORE_DATA;
     const localKeywords = config.keywords;
     const city = this.currentCity.replace('市', '');
 
-    // 刚才定义的强类型模板
     const topicTemplates: TopicTemplate[] = [
       { suffix: '深度游攻略', color: '#FFEAA7' },
       { suffix: '地名背后的故事', color: '#81ECEC' },
@@ -279,7 +291,6 @@ export struct ExploreView {
       { suffix: '历史建筑漫步', color: '#E8F5E9' }
     ];
 
-    // 映射成 HotTopic 数组
     this.hotTopics = localKeywords.slice(0, 5).map((key: string, index: number): HotTopic => {
       return {
         title: `${city}${key}${topicTemplates[index].suffix}`,
@@ -298,32 +309,44 @@ export struct ExploreView {
 
   build() {
     Stack() {
-      if (!this.isReady) {
+      if (!this.isReady || this.currentStage === 'full') {
         Column() {
           this.MainExploreContent()
         }
+        .width('100%').height('100%')
+      }
+
+      if (this.isReady && this.currentStage !== 'full') {
+        Stack() {
+          this.BackgroundAtmosphere()
+          Column() {
+            if (this.currentStage === 'welcome') {
+              this.WelcomeGuideUI()
+            } else if (this.currentStage === 'stepGuide') {
+              this.StepGuideUI()
+            }
+          }
+          .width('100%').height('100%')
+        }
         .width('100%')
         .height('100%')
-      }
-      if (this.isReady && this.currentStage !== 'full') {
-        this.GuideContent()
+        .backgroundColor(Color.Black)
+        .zIndex(999)
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+        .transition(TransitionEffect.OPACITY.combine(TransitionEffect.scale({ x: 1.1, y: 1.1 })))
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(Color.White)
   }
 
   // 引导逻辑
   @Builder GuideContent() {
     Stack() {
       Rect().width('100%').height('100%').fill(Color.Black)
-      // 背景
       if (this.currentStage === 'welcome' || this.currentStage === 'stepGuide') {
         this.BackgroundAtmosphere()
       }
-
-      // UI内容
       Column() {
         if (this.currentStage === 'welcome') {
           this.WelcomeGuideUI()
@@ -342,12 +365,10 @@ export struct ExploreView {
 
   @Builder WelcomeGuideUI() {
     Stack() {
-      // 1. 背景大图
       Image($r('app.media.start'))
         .width('100%')
         .height('100%')
         .objectFit(ImageFit.Cover)
-      // 2. 渐变遮罩
       Column()
         .width('100%')
         .height('100%')
@@ -355,7 +376,6 @@ export struct ExploreView {
           direction: GradientDirection.Bottom,
           colors: [['#20000000', 0.0], ['#80000000', 1.0]]
         })
-      // 3. 文字与入口
       Column() {
         Text('寻 · 域')
           .fontSize(48)
@@ -421,16 +441,14 @@ export struct ExploreView {
               .fontWeight(FontWeight.Medium)
               .letterSpacing(2)
           }
-          .width(200)
-          .height(56)
+          .width(200).height(56)
           .linearGradient({
             direction: GradientDirection.Right,
             colors: [['#FF7F50', 0.0], ['#FF6B6B', 1.0]]
           })
           .border({ width: 1, color: 'rgba(255, 255, 255, 0.5)' })
           .fontWeight(FontWeight.Medium)
-          .fontColor(Color.White)
-          .fontSize(16)
+          .fontColor(Color.White).fontSize(16)
           .backgroundBlurStyle(BlurStyle.Thin)
           .border({ width: 1, color: 'rgba(255, 255, 255, 0.5)' })
           .borderRadius(25)

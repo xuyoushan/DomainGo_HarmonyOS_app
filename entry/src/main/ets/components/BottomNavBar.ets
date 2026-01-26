@@ -16,7 +16,7 @@ export struct BottomNavBar {
       Column() {
         Stack() {
           Circle()
-            .width(43) // 稍微加大一点，防止 SymbolGlyph 边际裁剪
+            .width(43)
             .height(43)
             .fill('#007DFF')
             .shadow({ radius: 10, color: '#30007DFF', offsetY: 4 })
@@ -25,7 +25,6 @@ export struct BottomNavBar {
             .fontSize(28)
             .fontColor([Color.White])
         }
-        // 关键修复：防止图标被切边
         .clip(false)
         .onClick(() => {
           router.pushUrl({ url: 'pages/circle/PostDynamicView' })
@@ -53,7 +52,6 @@ export struct BottomNavBar {
       Image(this.currentIndex === index ? iconActive : icon)
         .width(26)
         .height(26)
-        // 关键修复：解决图标左侧被削去一块的问题
         .objectFit(ImageFit.Contain)
       Text(label)
         .fontSize(10)

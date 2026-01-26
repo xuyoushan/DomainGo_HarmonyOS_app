@@ -11,7 +11,7 @@
     "pages/features/explore/AllFunctionsView",
     "pages/features/explore/DataDetailView",
     "pages/features/AllFunctions/NoteView",
-    "pages/explore/CityHistoryPage",
+    "pages/features/explore/CityHistoryPage",
     "pages/features/explore/CityCelebrityPage",
     "pages/features/AllFunctions/GovServiceDetailView",
     "pages/features/AllFunctions/ScheduleView",
