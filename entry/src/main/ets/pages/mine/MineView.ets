@@ -194,9 +194,9 @@ export struct MineView {
           .fontColor('#FF4D4F')
           .borderRadius(12)
           .onClick(() => {
-            // 退出登录逻辑：重置全局变量
             AppStorage.setOrCreate('isLoggedIn', false);
             AppStorage.setOrCreate('userName', '点击注册/登录');
+            AppStorage.setOrCreate('currentUserId', ''); // 清理 ID
             promptAction.showToast({ message: '已退出登录' });
           })
 

@@ -7,10 +7,8 @@ import { PostItem, CommentItem } from '../../models/PostItem';
 struct PostDetailView {
   @StorageLink('globalPostList') globalPosts: PostItem[] = [];
 
-  // 1. 获取路由参数
   private params: Record<string, Object> = (router.getParams() as Record<string, Object>) || {};
 
-  // 1. 初始状态给定完整默认值
   @State postData: PostItem = (this.params.postData as PostItem) ?? {
     id: '0',
     userName: '加载中...',
@@ -27,15 +25,12 @@ struct PostDetailView {
 
   @State commentInput: string = '';
 
-  // --- 【功能保留：大图预览状态】 ---
   @State showBigImage: boolean = false;
   @State currentPreviewImg: string | Resource = '';
 
-  // --- 【新增：回复功能逻辑状态】 ---
   @State replyPlaceholder: string = '写下你的评论...';
   @State replyingToUser: string = '';
 
-  // 2. 在生命周期中安全获取路由参数
   aboutToAppear() {
     const params = router.getParams() as Record<string, Object>;
     if (params && params.postData) {
@@ -46,36 +41,29 @@ struct PostDetailView {
     }
   }
 
-  // --- 【同步逻辑】确保详情页修改能回传给全局 ---
   syncChanges() {
     const index = this.globalPosts.findIndex(p => p.id === this.postData.id);
     if (index !== -1) {
-      // 1. 同步全局数组数据
       this.globalPosts[index].isLiked = this.postData.isLiked;
       this.globalPosts[index].likeCount = this.postData.likeCount;
       this.globalPosts[index].isCollected = this.postData.isCollected;
       this.globalPosts[index].comments = [...this.postData.comments];
 
-      // 2. 【核心修复：UI强制刷新】
-      // 使用这种方式重新生成对象，强行触发 build() 重新渲染，解决图标颜色不跳变问题
       this.postData.isLiked = this.postData.isLiked;
       this.postData.isCollected = this.postData.isCollected;
       this.postData.comments = [...this.postData.comments];
 
 
-      // 3. 数组展开触发 Storage 更新
       AppStorage.SetOrCreate('globalPostList', [...this.globalPosts]);
     }
   }
 
-  // 发送评论逻辑
   sendComment() {
     if (!this.commentInput.trim()) {
       promptAction.showToast({ message: '评论内容不能为空' });
       return;
     }
 
-    // 处理回复前缀
     let finalContent = this.commentInput;
     if (this.replyingToUser) {
       finalContent = `回复 @${this.replyingToUser} : ${this.commentInput}`;
@@ -92,18 +80,14 @@ struct PostDetailView {
       this.postData.comments = [];
     }
 
-    // --- 【修复：回复位置逻辑】 ---
     if (this.replyingToUser) {
-      // 寻找被回复人的索引位置
       const targetIndex = this.postData.comments.findIndex(c => c.userName === this.replyingToUser);
       if (targetIndex !== -1) {
-        // 在被回复人下方插入（退格罗列）
         this.postData.comments.splice(targetIndex + 1, 0, newComment);
       } else {
         this.postData.comments.unshift(newComment);
       }
     } else {
-      // 普通评论放在最顶部
       this.postData.comments.unshift(newComment);
     }
 
@@ -156,19 +140,20 @@ struct PostDetailView {
                     params: { postData: this.postData }
                   })
                 })
-
               Column() {
                 Text(this.postData.userName)
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Medium)
+                  .fontSize(16).fontWeight(FontWeight.Medium)
+                Flex({ direction: FlexDirection.Row, wrap: FlexWrap.Wrap }) {
+                  Text('发布于 ')
+                    .fontSize(12).fontColor('#999999')
 
-                Text('发布于 ' + (this.postData.location || '未知位置'))
-                  .fontSize(12)
-                  .fontColor('#999999')
-                  .margin({ top: 2 })
+                  Text(this.postData.location || '未知位置')
+                    .fontSize(12).fontColor('#999999')
+                }
+                .margin({ top: 2 })
               }
               .alignItems(HorizontalAlign.Start)
-              .margin({ left: 10 })
+              .margin({ left: 10 }).layoutWeight(1)
             }
             .width('100%')
             .padding(15)

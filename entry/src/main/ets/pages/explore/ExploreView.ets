@@ -36,6 +36,7 @@ export struct ExploreView {
   @StorageLink('show_guide_manual') show_guide_manual: boolean = false;
   @State isDataLoaded: boolean = false;
   @State isShowGuideModal: boolean = false;
+  @StorageLink('welcomeFinished') welcomeFinished: boolean = false;
 
   private timerId: number = -1
 
@@ -109,10 +110,12 @@ export struct ExploreView {
   }
 
   aboutToAppear() {
-    this.currentStage = 'welcome';
-    this.isReady = true;
-    if (this.hasCompletedGuide) {
-      AppStorage.setOrCreate('welcomeFinished', true);
+    if (this.welcomeFinished) {
+      this.currentStage = 'full';
+      this.isReady = false;
+    } else {
+      this.currentStage = 'welcome';
+      this.isReady = true;
     }
     try {
       const displayData: display.Display = display.getDefaultDisplaySync();
@@ -490,7 +493,7 @@ export struct ExploreView {
       Row() {
         Row() {
           SymbolGlyph($r('sys.symbol.location_north_up_right_and_circle_dotted_fill')).fontSize(18).fontColor(['#007DFF'])
-          Text(this.currentCity).fontSize(14).fontWeight(FontWeight.Bold).margin({ left: 4 }).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(this.currentCity).fontSize(14).fontWeight(FontWeight.Bold).margin({ left: 4 }).maxLines(2).minFontSize(9).maxFontSize(14).textOverflow({ overflow: TextOverflow.Ellipsis }).constraintSize({ maxWidth: 80 }).textAlign(TextAlign.Start)
           SymbolGlyph($r('sys.symbol.chevron_down')).fontSize(12).fontColor(['#999'])
         }.onClick(() => this.showCityPicker()).width('28%')
 

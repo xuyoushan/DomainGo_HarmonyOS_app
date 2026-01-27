@@ -1,8 +1,10 @@
 import router from '@ohos.router';
+import { promptAction } from '@kit.ArkUI';
 
 @Component
 export struct BottomNavBar {
   @Link currentIndex: number;
+  @StorageLink('isLoggedIn') isLoggedIn: boolean = false;
 
   build() {
     Row() {
@@ -27,6 +29,11 @@ export struct BottomNavBar {
         }
         .clip(false)
         .onClick(() => {
+          if (!this.isLoggedIn) {
+            promptAction.showToast({ message: '请先登录后再发布' });
+            router.pushUrl({ url: 'pages/mine/RegisterView' });
+            return;
+          }
           router.pushUrl({ url: 'pages/circle/PostDynamicView' })
         })
         .margin({ bottom: 20 }) // 向上悬浮效果

@@ -1,18 +1,19 @@
 import router from '@ohos.router';
 import http from '@ohos.net.http';
 import { PostItem } from '../../models/PostItem';
-// import { PROVINCE_CITY_DATA } from '../../models/CityData';
+import { postRepo } from '../../services/PostRepository';
 import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import { promptAction } from '@kit.ArkUI';
 
 interface AmapPoi { name: string;address: string;adname: string; }
 interface AmapResponse { status: string;pois: AmapPoi[]; }
+interface PostDraft { text: string;images: (string | Resource)[]; }
 
 @Entry
 @Component
 struct PostDynamicView {
   @State postText: string = '';
-  @StorageLink('currentCity') currentCity: string = '武汉市';
+  @StorageLink('currentCity') currentCity: string = '定位中...';
   @State selectedLocation: string = '选择位置';
   @StorageLink('mainIndex') mainIndex: number = 0;
   @State selectedImages: (string | Resource)[] = [];
@@ -22,6 +23,44 @@ struct PostDynamicView {
   @State searchKey: string = '';
   @State searchResults: AmapPoi[] = [];
   @State isSearching: boolean = false;
+  @StorageLink('currentProvince') currentProvince: string = ''; // 引入省份监听
+
+  aboutToAppear() {
+    const draft = AppStorage.get<PostDraft>('post_draft_full');
+    if (draft) {
+      this.postText = draft.text;
+      this.selectedImages = draft.images;
+    }
+  }
+
+  // 拦截系统返回键/手势
+  onBackPress() {
+    if (this.postText.length > 0 || this.selectedImages.length > 0) {
+      promptAction.showDialog({
+        title: '是否保存草稿？',
+        message: '退出后，已编辑的内容将为您保留。',
+        buttons: [
+          { text: '不保存', color: '#999999' },
+          { text: '保存草稿', color: '#007DFF' }
+        ]
+      }).then(data => {
+        if (data.index === 1) {
+          const draft: PostDraft = {
+            text: this.postText,
+            images: this.selectedImages
+          };
+          AppStorage.setOrCreate('post_draft_obj', draft);
+          promptAction.showToast({ message: '草稿已保存' });
+          router.back();
+        } else {
+          AppStorage.setOrCreate('post_draft_obj', null);
+          router.back();
+        }
+      })
+      return true; // 拦截默认返回
+    }
+    return false; // 内容为空直接返回
+  }
 
   // --- 1. 相册选择逻辑 ---
   async selectImages() {
@@ -61,7 +100,9 @@ struct PostDynamicView {
     let query = keyword ? keyword : '地标';
     try {
       this.isSearching = true;
-      let url = `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(query)}&city=${encodeURIComponent(this.currentCity)}&offset=20&page=1&key=${amapKey}`;
+      // 【关键修改】：增加了 &citylimit=true，确保只在当前城市搜索
+      let url = `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(query)}&city=${encodeURIComponent(this.currentCity)}&citylimit=true&offset=20&page=1&key=${amapKey}`;
+
       let response = await httpRequest.request(url);
       if (response.responseCode === 200) {
         let res = JSON.parse(response.result as string) as AmapResponse;
@@ -77,7 +118,6 @@ struct PostDynamicView {
     }
   }
 
-  // --- 【修复点】重命名为 myDragPreview，避开系统属性名冲突 ---
   @Builder myDragPreview(uri: string | Resource) {
     Image(uri)
       .width(100)
@@ -90,41 +130,96 @@ struct PostDynamicView {
   build() {
     Stack() {
       Column() {
-        // 导航栏
         Row() {
-          Text('取消').fontSize(16).fontColor('#333').onClick(() => router.back())
+          Text('取消').fontSize(16).fontColor('#333').onClick(() => {
+            this.onBackPress() || router.back();
+          })
           Blank()
           Button('发布')
             .width(70).height(32).borderRadius(16)
             .backgroundColor(this.postText.length > 0 || this.selectedImages.length > 0 ? '#007DFF' : '#F5F5F5')
             .fontColor(this.postText.length > 0 || this.selectedImages.length > 0 ? '#FFFFFF' : '#BBBBBB')
             .enabled(this.postText.length > 0 || this.selectedImages.length > 0)
-            .onClick(() => {
-              const finalLoc = (this.selectedLocation === '选择位置' || this.selectedLocation === '')
-                ? this.currentCity : `${this.currentCity} · ${this.selectedLocation}`;
-              const autoTags = this.extractHashTags(this.postText);
-              const combinedTags = Array.from(new Set([...this.selectedTags, ...autoTags]));
+            .onClick(async () => {
+              const isLoggedIn = AppStorage.get<boolean>('isLoggedIn');
+              if (!isLoggedIn) {
+                promptAction.showToast({ message: '请先登录后再发布' });
+                router.pushUrl({ url: 'pages/mine/RegisterView' });
+                return;
+              }
 
-              const newPost: PostItem = {
-                id: Date.now().toString(),
-                userName: '探险家_1',
-                avatar: $r('app.media.ic_mine_active'),
-                text: this.postText,
-                location: finalLoc,
-                timestamp: Date.now(),
-                images: this.selectedImages.length > 0 ? this.selectedImages : [$r('app.media.map_china_tech')],
-                isLiked: false,
-                likeCount: 0,
-                isCollected: false,
-                comments: [],
-                tags: combinedTags
-              };
+              try {
+                await postRepo.init(getContext(this));
 
-              let posts = AppStorage.Get<PostItem[]>('globalPostList') || [];
-              posts.unshift(newPost);
-              AppStorage.SetOrCreate('globalPostList', posts);
-              this.mainIndex = 1;
-              router.back();
+                const uid = AppStorage.get<string>('currentUserId');
+                const uName = AppStorage.get<string>('userName');
+                const currentProv = AppStorage.get<string>('currentProvince') || '';
+
+                if (!uid) {
+                  promptAction.showToast({ message: '发布失败：账号异常，请重新登录' });
+                  return;
+                }
+
+                // --- 位置逻辑重构 ---
+                let finalLoc = '';
+                const isDefaultLoc = (this.selectedLocation === '选择位置' || this.selectedLocation === '');
+
+                if (isDefaultLoc) {
+                  // 场景 A：未选位置。优先显示省份，定位中则显示火星
+                  if (currentProv && currentProv !== '' && currentProv !== '定位中...' && currentProv !== '未知省份') {
+                    finalLoc = currentProv;
+                  } else {
+                    finalLoc = '未知地区 · 火星';
+                  }
+                } else {
+                  // 场景 B：选了位置。由于搜索已锁定城市，直接：市 · 详细地名
+                  const selected = this.selectedLocation;
+                  const city = this.currentCity;
+
+                  // 防止出现 “武汉市 · 武汉市”
+                  if (selected === city || selected.startsWith(city)) {
+                    finalLoc = selected;
+                  } else {
+                    finalLoc = `${city} · ${selected}`;
+                  }
+                }
+
+                const autoTags = this.extractHashTags(this.postText);
+                const combinedTags = Array.from(new Set([...this.selectedTags, ...autoTags]));
+
+                const newPost: PostItem = {
+                  id: Date.now().toString(),
+                  userName: uName || '匿名探险家',
+                  avatar: $r('app.media.ic_mine_active'),
+                  text: this.postText,
+                  location: finalLoc,
+                  timestamp: Date.now(),
+                  images: this.selectedImages.length > 0 ? this.selectedImages : [],
+                  isLiked: false,
+                  likeCount: 0,
+                  isCollected: false,
+                  comments: [],
+                  tags: combinedTags
+                };
+
+                await postRepo.insertPost(newPost, uid);
+
+                let posts = AppStorage.get<PostItem[]>('globalPostList') || [];
+                AppStorage.setOrCreate('globalPostList', [newPost, ...posts]);
+
+                // 清空草稿
+                AppStorage.setOrCreate('post_draft_obj', null);
+
+                promptAction.showToast({ message: '发布成功' });
+                this.mainIndex = 1;
+
+                setTimeout(() => {
+                  router.back();
+                }, 500);
+
+              } catch (err) {
+                promptAction.showToast({ message: `发布失败: ${err.message || '未知错误'}` });
+              }
             })
         }
         .width('100%').padding({ left: 20, right: 20, top: 15, bottom: 15 })
@@ -135,109 +230,71 @@ struct PostDynamicView {
               .width('100%').height(160).backgroundColor(Color.Transparent)
               .fontSize(16).onChange((v) => this.postText = v)
 
-            // --- 【核心修改：Grid 拖拽排序区域】 ---
             Grid() {
               ForEach(this.selectedImages, (uri: string, index: number) => {
                 GridItem() {
                   Stack({ alignContent: Alignment.TopEnd }) {
-                    Image(uri)
-                      .width('100%').height(100).borderRadius(8).objectFit(ImageFit.Cover)
-
+                    Image(uri).width('100%').height(100).borderRadius(8).objectFit(ImageFit.Cover)
                     if (index === 0) {
-                      Text('封面')
-                        .fontSize(10).fontColor(Color.White)
-                        .backgroundColor('#007DFF').padding({ left: 4, right: 4 })
-                        .borderRadius({ topRight: 8, bottomLeft: 8 })
+                      Text('封面').fontSize(10).fontColor(Color.White).backgroundColor('#007DFF')
+                        .padding({ left: 4, right: 4 }).borderRadius({ topRight: 8, bottomLeft: 8 })
                     }
-
-                    // 删除按钮
-                    SymbolGlyph($r('sys.symbol.xmark_circle_fill'))
-                      .fontSize(20).fontColor(['#CC000000'])
+                    SymbolGlyph($r('sys.symbol.xmark_circle_fill')).fontSize(20).fontColor(['#CC000000'])
                       .onClick(() => {
                         this.selectedImages.splice(index, 1);
-                        // 触发 UI 刷新
                         this.selectedImages = [...this.selectedImages];
                       })
-                  }
-                  .width(100).height(100)
+                  }.width(100).height(100)
                 }
-              }, (uri: string, index: number) => uri + index) // 【修复关键】加入 index 确保排序位移后 UI 刷新
-              // 添加按钮
+              }, (uri: string, index: number) => uri + index)
+
               if (this.selectedImages.length < 9) {
-                GridItem() {
-                  this.AddImageBtn()
-                }
+                GridItem() { this.AddImageBtn() }
               }
             }
-            .columnsTemplate('1fr 1fr 1fr')
-            .columnsGap(10)
-            .rowsGap(10)
-            .width('100%')
-            .margin({ top: 10 })
-            .height(Math.ceil((this.selectedImages.length + 1) / 3) * 110) // 动态计算高度
-            .editMode(true) // 必须开启
+            .columnsTemplate('1fr 1fr 1fr').columnsGap(10).rowsGap(10).width('100%').margin({ top: 10 })
+            .height(Math.ceil((this.selectedImages.length + 1) / 3) * 110).editMode(true)
             .onItemDragStart((event: ItemDragInfo, itemIndex: number) => {
-              if (itemIndex >= this.selectedImages.length) return null; // “+”号不可拖拽
-              // 【同步修改调用名】
+              if (itemIndex >= this.selectedImages.length) return null;
               return this.myDragPreview(this.selectedImages[itemIndex]);
             })
             .onItemDrop((event: ItemDragInfo, itemIndex: number, insertIndex: number, isSuccess: boolean) => {
-              // 交换逻辑
               if (!isSuccess || insertIndex >= this.selectedImages.length || itemIndex >= this.selectedImages.length) return;
               let temp = this.selectedImages[itemIndex];
               this.selectedImages.splice(itemIndex, 1);
               this.selectedImages.splice(insertIndex, 0, temp);
-              this.selectedImages = [...this.selectedImages]; // 强制刷新 State
+              this.selectedImages = [...this.selectedImages];
             })
 
-            // 菜单列表
             List() {
               ListItem() {
-                this.MenuRow(
-                  $r('sys.symbol.mappin_and_rectangle'),
-                  '所在位置',
+                this.MenuRow($r('sys.symbol.mappin_and_rectangle'), '所在位置',
                   (!this.selectedLocation || this.selectedLocation === '选择位置')
-                    ? this.currentCity : `${this.currentCity} · ${this.selectedLocation}`,
-                  true
-                )
-              }.onClick(() => {
-                this.showLocationSearch = true;
-                this.searchPoi('');
-              })
-
+                    ? this.currentCity : `${this.currentCity} · ${this.selectedLocation}`, true)
+              }.onClick(() => { this.showLocationSearch = true; this.searchPoi(''); })
               ListItem() { this.MenuRow($r('sys.symbol.person_crop_circle_fill'), '提醒谁看', '未选择', true) }
-
               ListItem() {
                 Column() {
                   this.MenuRow($r('sys.symbol.label'), '添加标签', '', false)
                   Flex({ wrap: FlexWrap.Wrap }) {
                     ForEach(this.tags, (tag: string) => {
-                      Text(`#${tag}`)
-                        .fontSize(12).padding({ left: 10, right: 10, top: 5, bottom: 5 }).margin({ right: 8, bottom: 8 })
+                      Text(`#${tag}`).fontSize(12).padding({ left: 10, right: 10, top: 5, bottom: 5 }).margin({ right: 8, bottom: 8 })
                         .backgroundColor(this.selectedTags.includes(tag) ? '#E6F2FF' : '#F5F5F5')
                         .fontColor(this.selectedTags.includes(tag) ? '#007DFF' : '#666666')
-                        .borderRadius(12)
-                        .onClick(() => {
-                          if (this.selectedTags.includes(tag)) {
-                            this.selectedTags = this.selectedTags.filter(t => t !== tag)
-                          } else {
-                            this.selectedTags.push(tag)
-                          }
-                        })
+                        .borderRadius(12).onClick(() => {
+                        if (this.selectedTags.includes(tag)) { this.selectedTags = this.selectedTags.filter(t => t !== tag) }
+                        else { this.selectedTags.push(tag) }
+                      })
                     })
                   }.margin({ top: 5, left: 35 })
                 }.padding({ bottom: 15 })
               }
               ListItem() { this.MenuRow($r('sys.symbol.lock_fill'), '谁可以看', '公开', true) }
-            }
-            .width('100%').divider({ strokeWidth: 1, color: '#F1F3F5', startMargin: 35 })
-          }
-          .padding(20)
+            }.width('100%').divider({ strokeWidth: 1, color: '#F1F3F5', startMargin: 35 })
+          }.padding(20)
         }.layoutWeight(1)
-      }
-      .width('100%').height('100%').backgroundColor('#FFFFFF')
+      }.width('100%').height('100%').backgroundColor('#FFFFFF')
 
-      // 地点搜索半屏弹窗 (完整逻辑)
       if (this.showLocationSearch) {
         Column() {
           Row() {
@@ -245,45 +302,28 @@ struct PostDynamicView {
             Blank()
             Text('取消').fontColor('#007DFF').onClick(() => this.showLocationSearch = false)
           }.width('100%').padding(20)
-
           Search({ placeholder: `搜索${this.currentCity}地点...`, value: this.searchKey })
-            .width('92%').margin({ bottom: 10 })
-            .onChange(v => {
-              this.searchKey = v;
-              this.searchPoi(v);
-            })
-
+            .width('92%').margin({ bottom: 10 }).onChange(v => { this.searchKey = v; this.searchPoi(v); })
           List() {
             if (this.isSearching) {
               ListItem() { Text('正在搜索附近地点...').width('100%').textAlign(TextAlign.Center).padding(20).fontColor('#999') }
             }
-            ListItem() {
-              Text('不显示位置').fontColor('#007DFF').fontSize(16).padding(15)
-            }.onClick(() => {
-              this.selectedLocation = '';
-              this.showLocationSearch = false;
-            })
+            ListItem() { Text('不显示位置').fontColor('#007DFF').fontSize(16).padding(15) }
+            .onClick(() => { this.selectedLocation = ''; this.showLocationSearch = false; })
             ForEach(this.searchResults, (item: AmapPoi) => {
               ListItem() {
                 Column() {
                   Text(item.name).fontSize(16).fontColor('#333')
                   Text(item.address || item.adname).fontSize(12).fontColor('#999').margin({ top: 4 })
-                }
-                .width('100%').alignItems(HorizontalAlign.Start).padding(15)
-              }.onClick(() => {
-                this.selectedLocation = item.name;
-                this.showLocationSearch = false;
-              })
+                }.width('100%').alignItems(HorizontalAlign.Start).padding(15)
+              }.onClick(() => { this.selectedLocation = item.name;
+                if (item.adname) {
+                  this.selectedLocation = item.adname + ' · ' + item.name;
+              }
+                this.showLocationSearch = false; })
             })
-          }
-          .layoutWeight(1).width('100%').divider({ strokeWidth: 1, color: '#F1F3F5' })
-        }
-        .width('100%').height('95%').backgroundColor('#FFFFFF')
-        .borderRadius({ topLeft: 16, topRight: 16 })
-        .transition(TransitionEffect.asymmetric(
-          TransitionEffect.move(TransitionEdge.BOTTOM),
-          TransitionEffect.move(TransitionEdge.BOTTOM)
-        ))
+          }.layoutWeight(1).width('100%').divider({ strokeWidth: 1, color: '#F1F3F5' })
+        }.width('100%').height('95%').backgroundColor('#FFFFFF').borderRadius({ topLeft: 16, topRight: 16 })
         .shadow({ radius: 20, color: '#1A000000' })
       }
     }
@@ -295,9 +335,7 @@ struct PostDynamicView {
       Text(title).fontSize(16).margin({ left: 15 }).fontColor('#333333')
       Blank()
       Text(value).fontSize(14).fontColor('#999999').margin({ right: 5 })
-      if (showArrow) {
-        SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor(['#CCCCCC'])
-      }
+      if (showArrow) { SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor(['#CCCCCC']) }
     }.width('100%').padding({ top: 15, bottom: 15 })
   }
 

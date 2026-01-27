@@ -1,9 +1,17 @@
-// models/PostItem.ts
+export interface UserInfo {
+  id: string;        // 唯一ID (主键)
+  username: string;
+  email: string;
+  password?: string;
+  avatar: string;
+}
+
+// 保持你原有的接口不变
 export interface CommentItem {
   userName: string;
   avatar: Resource;
   content: string;
-  timestamp: number; // 确保有这个
+  timestamp: number;
 }
 
 export interface PostItem {
@@ -13,10 +21,10 @@ export interface PostItem {
   text: string;
   location: string;
   timestamp: number;
-  images: (Resource | string)[]; // 核心：允许 Resource 和 string 混用
+  images: (Resource | string)[];
   isLiked: boolean;
   likeCount: number;
   isCollected: boolean;
   comments: CommentItem[];
-  tags?: string[]; // 别忘了发布页需要的这个标签字段
+  tags?: string[];
 }
