@@ -715,7 +715,6 @@ export struct ExploreView {
   // 🖼️ 【画卷入口】城市印象
   @Builder HeroArchiveCard() {
     Stack({ alignContent: Alignment.BottomStart }) {
-      // 模拟一个城市缩略图背景（可配合你的城市数据）
       Image($r('app.media.city_impression_placeholder'))
         .width('100%').height(140).borderRadius(20).objectFit(ImageFit.Cover)
         .linearGradient({
@@ -725,7 +724,7 @@ export struct ExploreView {
 
       Column() {
         Text('城市印象').fontSize(22).fontWeight(FontWeight.Bolder).fontColor(Color.White)
-        Text(`${this.currentCity} · 城市档案总览`).fontSize(12).fontColor('rgba(255,255,255,0.8)').margin({ top: 4 })
+        Text(`${this.currentCity} · 字里行间`).fontSize(12).fontColor('rgba(255,255,255,0.8)').margin({ top: 4 })
       }.padding(20)
     }
     .width('100%')
@@ -795,7 +794,8 @@ export struct ExploreView {
       const pageMap: Record<string, string> = {
         '全部': 'pages/features/explore/AllFunctionsView',
         '场馆预约': 'pages/features/explore/VenueBookingView',
-        '特产风味': 'pages/features/explore/SpecialtyView'
+        '特产风味': 'pages/features/explore/SpecialtyView',
+        '景点推荐': 'pages/features/explore/ScenicRecommendView'
       };
       if (pageMap[name]) {router.pushUrl({ url: pageMap[name], params: { cityName: this.currentCity } });
       } else if (name === '文化资源') {

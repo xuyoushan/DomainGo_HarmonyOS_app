@@ -1,9 +1,8 @@
-// entry/src/main/ets/pages/DataDetailView.ets
 import { router } from '@kit.ArkUI';
 import { util } from '@kit.ArkTS';
-import { textToSpeech } from '@kit.CoreSpeechKit'; // 🔹 1. 引入语音套件
-import { promptAction } from '@kit.ArkUI'; // 🔹 统一使用 kit 引入
-import { BusinessError } from '@kit.BasicServicesKit'; // 🔹 必加：修复 TTS 不响应的关键
+import { textToSpeech } from '@kit.CoreSpeechKit';
+import { promptAction } from '@kit.ArkUI';
+import { BusinessError } from '@kit.BasicServicesKit';
 import type common from '@ohos.app.ability.common';
 
 interface DetailParam {
@@ -44,17 +43,15 @@ struct DataDetailView {
   @State accentColor: string = "#B58900";
   @State loadingStatus: string = "正在读取文章内容...";
 
-  // 🔹 2. 朗读相关私有变量
   private ttsEngine?: textToSpeech.TextToSpeechEngine;
-  @State currentSwiperIndex: number = 0; // 记录当前在看哪一篇
+  @State currentSwiperIndex: number = 0;
 
   aboutToAppear() {
     this.params = router.getParams() as DetailParam;
     this.loadArticleContent();
-    this.initTts(); // 🔹 3. 初始化TTS
+    this.initTts();
   }
 
-  // 🔹 4. 释放资源，防止内存泄漏和声音关不掉
   aboutToDisappear() {
     if (this.ttsEngine) {
       this.ttsEngine.stop();
@@ -62,7 +59,6 @@ struct DataDetailView {
     }
   }
 
-  // 🔹 5. 初始化TTS引擎逻辑
   initTts() {
     try {
       let initParamsInfo: textToSpeech.CreateEngineParams = {
@@ -87,7 +83,6 @@ struct DataDetailView {
     }
   }
 
-  // 🔹 6. 朗读/停止逻辑
   handleSpeech() {
     if (!this.ttsEngine) {
       promptAction.showToast({ message: '语音引擎初始化中...' });
@@ -98,7 +93,6 @@ struct DataDetailView {
     } else {
       const currentArticle = this.articleList[this.currentSwiperIndex];
       if (currentArticle) {
-        // 朗读 标题 + 作者 + 正文内容
         let textToRead = `${currentArticle.title}。作者：${currentArticle.author}。${currentArticle.content}`;
         let speakParams: textToSpeech.SpeakParams = {
           requestId: Date.now().toString(),
@@ -114,7 +108,6 @@ struct DataDetailView {
     const cityName = this.params?.cityName || "";
     const context = getContext(this) as common.UIAbilityContext;
 
-    // 匹配城市配置
     const cityKey = Object.keys(CITY_STYLES).find(k => cityName.includes(k));
     const config = cityKey ? CITY_STYLES[cityKey] : null;
 
@@ -132,7 +125,6 @@ struct DataDetailView {
     }
   }
 
-  // 新增一个解码中转函数，保持 parseMarkdown 逻辑纯净
   processRawText(uint8arr: Uint8Array) {
     const textDecoder = util.TextDecoder.create('utf-8');
     const rawText: string = textDecoder.decodeWithStream(uint8arr);
@@ -143,13 +135,12 @@ struct DataDetailView {
     const parts = allText.split(/##|第[一二]篇文章：/);
     const authors = ["郁达夫", "老舍", "冯骥才", "冯兴东", "茅盾", "王志纲", "池莉", "易中天", "朱自清", "丰子恺", "何其芳"];
 
-    this.articleList = parts.filter(p => p.trim()).map((part): ArticleItem => { // 🔹 这里显式加上 : ArticleItem
+    this.articleList = parts.filter(p => p.trim()).map((part): ArticleItem => {
       const lines = part.trim().split('\n');
       const title = lines[0].replace(/#/g, '').trim();
       const content = part.trim().substring(part.trim().indexOf('\n')).trim();
       const foundAuthor = authors.find(a => part.includes(a));
 
-      // 🔹 返回时确保字段完全匹配接口
       return {
         title: title,
         author: foundAuthor || "名家散文",
@@ -222,7 +213,6 @@ struct DataDetailView {
                   .margin({ top: 10, bottom: 35 })
 
                 if (item.content.length > 0) {
-                  // --- 解决首字遮挡方案：使用相对定位避让 ---
                   Stack({ alignContent: Alignment.TopStart }) {
                     // 大字底部显示
                     Text(item.content.charAt(0))
@@ -232,7 +222,6 @@ struct DataDetailView {
                       .margin({ top: -5 }) // 向上微调，视觉对齐
 
                     Text() {
-                      // 这里的空Span配合文字首行缩进，彻底解决重叠
                       Span('                 \n          ')
                       Span(item.content.substring(1))
                         .fontSize(19)

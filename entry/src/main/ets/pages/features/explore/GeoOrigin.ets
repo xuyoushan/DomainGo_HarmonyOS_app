@@ -3,7 +3,6 @@ import { http } from '@kit.NetworkKit'; // 导入原生网络库
 import { BusinessError } from '@kit.BasicServicesKit';
 import { GEO_ORIGIN_DATA, CityStory, DistrictStory } from '../../../models/DistrictStoryData';
 
-/* ===== 智谱 GLM 响应结构（最小可用版） ===== */
 interface GLMMessage {
   role: string;
   content: string;
@@ -19,8 +18,8 @@ interface GLMChatResponse {
 
 interface AIChatItem {
   role: 'user' | 'assistant'
-  content: string     // 实际发给 AI 的（含 Prompt）
-  display?: string    // ⭐ 界面显示的文字（纯问题）
+  content: string
+  display?: string
 }
 
 
@@ -32,10 +31,10 @@ struct GeoOriginNewView {
   @State isShowDetail: boolean = false;
 
   /* ========= AI 面板 ========= */
-  @State aiChats: AIChatItem[] = []   // ⭐ 多轮对话核心
-  @State showAI: boolean = false;       // AI 面板是否显示
-  @State aiQuery: string = '';          // 用户输入
-  @State aiLoading: boolean = false;    // AI 调用中
+  @State aiChats: AIChatItem[] = []
+  @State showAI: boolean = false;
+  @State aiQuery: string = '';
+  @State aiLoading: boolean = false;
 
   /* ========= 偏历史色板 ========= */
   private bgDeep = '#3A352F';
@@ -56,10 +55,10 @@ struct GeoOriginNewView {
   private getGlmToken(): string {
     const id = '82e4d46a05264dd19a27e1d91b30dce6';
     const secret = 'UNpMhFWNznhFSPLo';
-    return `${id}.${secret}`; // 确保中间只有一个点
+    return `${id}.${secret}`;
   }
 
-  private GLM_MODEL = 'glm-4-flash';        // 快 + 免费额度 + 稳定
+  private GLM_MODEL = 'glm-4-flash';
   private aiScroller: Scroller = new Scroller();
 
   private buildArchivePrompt(userQuestion: string): string {
@@ -73,10 +72,8 @@ struct GeoOriginNewView {
   private async callAI(question: string) {
     if (!question) return;
 
-    // 1️⃣ 构造 Prompt 逻辑（存入 content，但 UI 不显示）
     const userContent = this.buildArchivePrompt(question);
 
-    // 2️⃣ 记录对话：微信式聊天体验
     this.aiChats.push({
       role: 'user',
       content: userContent,
@@ -86,7 +83,6 @@ struct GeoOriginNewView {
     this.aiLoading = true;
     this.aiQuery = ''; // 立即清空输入框实现反馈
 
-    // 发送后立即滚动到底部
     this.scrollToBottom();
 
     let httpRequest = http.createHttp();

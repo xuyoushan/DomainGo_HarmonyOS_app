@@ -22,6 +22,7 @@
     "pages/features/mine/settings",
     "pages/features/explore/CultureView",
     "pages/features/explore/SpecialtyView",
-    "pages/features/AllFunctions/CityToolkitView"
+    "pages/features/AllFunctions/CityToolkitView",
+    "pages/features/explore/ScenicRecommendView"
   ]
 }
