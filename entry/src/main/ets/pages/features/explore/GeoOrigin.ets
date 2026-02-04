@@ -77,11 +77,11 @@ struct GeoOriginNewView {
     this.aiChats.push({
       role: 'user',
       content: userContent,
-      display: question // ⭐ UI 只显示这行原始输入
+      display: question
     });
 
     this.aiLoading = true;
-    this.aiQuery = ''; // 立即清空输入框实现反馈
+    this.aiQuery = '';
 
     this.scrollToBottom();
 
@@ -143,7 +143,6 @@ struct GeoOriginNewView {
     }
   }
 
-  // ⭐ 解决滚动到底部的问题
   private scrollToBottom() {
     setTimeout(() => {
       this.aiScroller.scrollEdge(Edge.Bottom);

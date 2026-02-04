@@ -581,7 +581,7 @@ export struct ExploreView {
           Column() {
             this.HeroArchiveCard()
             Row({ space: 12 }) {
-              this.VerticalFeatureCard('地名寻踪', $r('sys.symbol.doc_text_fill'), '#A29BFE', '探索地名背后的故事')
+              this.VerticalFeatureCard('地名寻踪', $r('sys.symbol.doc_text_fill'), '#A29BFE', '探索地名背后的故事\n了解城市的起源\n触摸城市的底蕴')
               Column({ space: 12 }) {
                 this.HorizontalFeatureCard('历史轴线', $r('sys.symbol.timer_circle_fill'), '#65bb5c', '穿越时空的城市脉络')
                 this.SquareFeatureCard('文化资源', $r('sys.symbol.flower'), '#FF2D55')
@@ -795,11 +795,9 @@ export struct ExploreView {
         '全部': 'pages/features/explore/AllFunctionsView',
         '场馆预约': 'pages/features/explore/VenueBookingView',
         '特产风味': 'pages/features/explore/SpecialtyView',
-        '景点推荐': 'pages/features/explore/ScenicRecommendView'
+        '景点推荐': 'pages/features/explore/ScenicRecommendView',
       };
       if (pageMap[name]) {router.pushUrl({ url: pageMap[name], params: { cityName: this.currentCity } });
-      } else if (name === '文化资源') {
-        router.pushUrl({ url: 'pages/features/explore/CultureView', params: { cityName: this.currentCity } });
       } else {
         promptAction.showToast({ message: `${name} 功能开发中...` });
       }
@@ -815,7 +813,7 @@ export struct ExploreView {
     .padding(15)
     .backgroundColor('#FFF9F5')
     .borderRadius(16)
-    .onClick(() => {router.pushUrl({ url: 'pages/features/explores/CultureView', params: { cityName: this.currentCity } });
+    .onClick(() => {router.pushUrl({ url: 'pages/features/explore/CultureView', params: { cityName: this.currentCity } });
     })
   }
 

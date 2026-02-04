@@ -42,9 +42,9 @@ struct DataDetailView {
   @State themeColor: string = "#FDF6E3";
   @State accentColor: string = "#B58900";
   @State loadingStatus: string = "正在读取文章内容...";
+  @State currentSwiperIndex: number = 0;
 
   private ttsEngine?: textToSpeech.TextToSpeechEngine;
-  @State currentSwiperIndex: number = 0;
 
   aboutToAppear() {
     this.params = router.getParams() as DetailParam;
@@ -149,6 +149,18 @@ struct DataDetailView {
     });
   }
 
+  pageTransition() {
+    // 进入页面：从右侧滑入并淡入
+    PageTransitionEnter({ duration: 888, curve: Curve.FastOutSlowIn })
+      .slide(SlideEffect.Right)
+      .opacity(0)
+
+    // 退出页面：向左侧滑出并淡出
+    PageTransitionExit({ duration: 888, curve: Curve.FastOutSlowIn })
+      .slide(SlideEffect.Left)
+      .opacity(0)
+  }
+
   build() {
     Column() {
       // 导航栏
@@ -167,6 +179,26 @@ struct DataDetailView {
           .margin({ left: 12 })
 
         Blank()
+
+        Row() {
+          SymbolGlyph($r('sys.symbol.person_crop_circle_fill'))
+            .fontSize(20)
+            .fontColor([this.accentColor])
+          Text(' 名人')
+            .fontSize(14)
+            .fontColor(this.accentColor)
+            .margin({ left: 4 })
+        }
+        .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+        .margin({ right: 10 })
+        .borderRadius(25)
+        .backgroundColor('#1A000000')
+        .onClick(() => {
+          router.pushUrl({
+            url: 'pages/features/explore/CityCelebrityPage', // 请确保路径正确
+            params: { cityName: this.params?.cityName }
+          })
+        })
 
         Row() {
           SymbolGlyph(this.isPlaying ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
@@ -252,5 +284,11 @@ struct DataDetailView {
     .width('100%')
     .height('100%')
     .backgroundColor(this.themeColor)
+  }
+  onBackPress() {
+    router.back({
+      url: 'pages/Index'
+    })
+    return true;
   }
 }

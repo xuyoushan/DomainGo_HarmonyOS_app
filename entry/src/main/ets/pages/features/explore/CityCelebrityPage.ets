@@ -29,7 +29,6 @@ struct CityPeoplePage {
     return identity.split('·').map(i => i.trim())
   }
 
-  /* ================== 逻辑处理 ================== */
   private getSplitParts(text: string): string[] {
     const keywords: string[] = ['代表', '重要', '首次', '著名', '奠定', '影响', '开创'];
     return text.split(new RegExp(`(${keywords.join('|')})`, 'g'));
@@ -40,7 +39,18 @@ struct CityPeoplePage {
     return keywords.includes(word);
   }
 
-  /* ================== 简介高亮渲染 ================== */
+  pageTransition() {
+    // 进入页面：从右侧滑入并淡入
+    PageTransitionEnter({ duration: 888, curve: Curve.FastOutSlowIn })
+      .slide(SlideEffect.Right)
+      .opacity(0)
+
+    // 退出页面：向左侧滑出并淡出
+    PageTransitionExit({ duration: 888, curve: Curve.FastOutSlowIn })
+      .slide(SlideEffect.Left)
+      .opacity(0)
+  }
+
   @Builder
   buildDescription(text: string) {
     Text() {
@@ -101,28 +111,23 @@ struct CityPeoplePage {
 
               /* --- 2. 内容详情区 --- */
               Column() {
-                // 重点改进：人物标签显眼化
                 Text("核心身份")
                   .fontSize(14)
                   .fontColor('#999999')
                   .margin({ bottom: 15 })
                   .fontWeight(FontWeight.Medium)
-                  .letterSpacing(2) // 增加字间距，提升精致感
+                  .letterSpacing(2)
 
                 Flex({ wrap: FlexWrap.Wrap }) {
                   ForEach(this.getIdentityArray(item.identity), (tag: string) => {
                     Text(tag)
                       .fontSize(15)
                       .fontWeight(FontWeight.Bold)
-                      // 使用“朱砂红”或“故宫红” (#B22222) 替代黑色，
-                      // 配合极浅的红底色，模拟印章或朱批的效果，非常有生机且高级
                       .fontColor('#B22222')
                       .backgroundColor('#FDF2F2')
                       .padding({ left: 15, right: 15, top: 8, bottom: 8 })
-                      // 弃用纯直角，改用 2vp 的极微小圆角，能消除视觉上的“扎手感”，更加温润
                       .borderRadius(2)
                       .margin({ right: 12, bottom: 12 })
-                      // 增加一个极细的朱砂色边框，强化“印章”质感
                       .border({ width: 0.5, color: 'rgba(178, 34, 34, 0.3)' })
                   }, (tag: string) => tag)
                 }
@@ -177,29 +182,59 @@ struct CityPeoplePage {
       .indicator(false)
       .loop(true)
 
-      /* --- 改进：合并后的顶部导航 --- */
       Row() {
         SymbolGlyph($r('sys.symbol.chevron_left'))
-          .fontSize(26)
-          .fontColor(['#000000']) // 黑色图标，更有力
-          .onClick(() => router.back())
+          .fontSize(28)
+          .fontColor(['#000000'])
+          .onClick(() => {
+            router.back({ url: 'pages/Index' })
+          })
 
         Text(`${this.currentCity}城市人物志`)
-          .fontSize(18)
+          .fontSize(22)
           .fontWeight(FontWeight.Bold)
           .fontColor('#000000')
           .margin({ left: 12 })
+          .layoutWeight(1)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-        Blank()
+        Button('城市印象')
+          .fontSize(16)
+          .opacity(0.85)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#FFFFFF')
+          .backgroundColor('#B22222')
+          .height(42) // 加高按钮
+          .padding({ left: 20, right: 20 })
+          .borderRadius(22.5) // 圆角同步
+          .offset({ y: -1.5 }) // 视觉上移，增加动感
+          .borderRadius(24)
+          .linearGradient({
+            direction: GradientDirection.Right,
+            colors: [['#D32F2F', 0.0], ['#B22222', 0.5], ['#8B0000', 1.0]]
+          })
+          .border({ width: 0.5, color: 'rgba(255,255,255,0.3)' })
+          .shadow({
+            radius: 15,
+            color: 'rgba(178, 34, 34, 0.4)',
+            offsetY: 6
+          })
       }
       .width('100%')
       .padding({ left: 20, right: 20, top: 10 })
-      .backgroundColor('rgba(250,250,248,0.8)') // 顶部导航加一层毛玻璃或半透明背景，确保能看清
+      .backgroundColor('rgba(250,250,248,0.8)') // 顶部导航加一层毛玻璃
       .backdropBlur(10)
       .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
     .height('100%')
     .backgroundColor('#FAFAF8')
+  }
+  onBackPress() {
+    router.back({
+      url: 'pages/Index'
+    })
+    return true;
   }
 }

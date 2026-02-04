@@ -66,7 +66,6 @@
 //       crazyNote: '避坑指南：如果路边看到在树下下棋的老头且他正处于劣势，千万别指点，否则将触发“长达两小时的汉口/武昌野史强制听讲”且无法跳过。'
 //     }
 //   ]
-//   // 后续继续添加：
 //   // '北京市': [...],
 //   // '成都市': [...],
 // };
@@ -98,7 +97,6 @@ class CityVibeDetail {
 export class ToolkitLogic {
   static readonly PREFIX: string[] = ['极凶', '乱序', '空灵', '大凶之萌', '上行', '潜龙'];
 
-  // 修复：使用 new 关键字实例化对象，彻底解决图片中的 Object literal 报错
   static readonly CITY_VIBE: Record<string, CityVibeDetail> = {
     '北京市': new CityVibeDetail('局气、胡同、历史的沉重与赛博折叠', ['鸽哨划过灰蒙蒙的天空', '二环路永不停歇的轮胎摩擦声'], '带着干燥沙尘的皇城根气息'),
     '上海市': new CityVibeDetail('精致、边界感、咖啡豆与梧桐树', ['武康路快门声', '便利店自动门机械声'], '混杂着拿铁酸度的缝隙风'),
