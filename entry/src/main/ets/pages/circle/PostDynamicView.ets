@@ -26,10 +26,22 @@ struct PostDynamicView {
   @StorageLink('currentProvince') currentProvince: string = ''; // 引入省份监听
 
   aboutToAppear() {
-    const draft = AppStorage.get<PostDraft>('post_draft_full');
-    if (draft) {
-      this.postText = draft.text;
-      this.selectedImages = draft.images;
+    // 1. 优先获取路由参数，判断是否为“编辑修改”模式
+    const params = router.getParams() as Record<string, Object>;
+    if (params && params.editData) {
+      const editPost = params.editData as PostItem;
+      this.postText = editPost.text; // 填充原有文字
+      this.selectedImages = [...editPost.images]; // 填充原有图片
+      this.selectedLocation = editPost.location; // 填充原有位置
+      // 可以在这里给一个 State 变量(如 isEditMode)赋值 true，用于发布按钮的判断
+    }
+    // 2. 如果不是修改模式，再检查是否有本地保存的草稿
+    else {
+      const draft = AppStorage.get<PostDraft>('post_draft_full');
+      if (draft) {
+        this.postText = draft.text;
+        this.selectedImages = draft.images;
+      }
     }
   }
 
@@ -151,36 +163,34 @@ struct PostDynamicView {
               try {
                 await postRepo.init(getContext(this));
 
-                const uid = AppStorage.get<string>('currentUserId');
-                const uName = AppStorage.get<string>('userName');
-                const currentProv = AppStorage.get<string>('currentProvince') || '';
+                // 使用 ?? '' 确保即使获取不到，也是空字符串而不是 undefined
+                const uid: string = AppStorage.get<string>('currentUserId') ?? '';
+                const uName: string = AppStorage.get<string>('userName') ?? '匿名探险家';
+                const currentProv: string = AppStorage.get<string>('currentProvince') ?? '';
+                const currentCity: string = AppStorage.get<string>('currentCity') ?? '';
 
-                if (!uid) {
+                if (!uid || uid === '') {
                   promptAction.showToast({ message: '发布失败：账号异常，请重新登录' });
                   return;
                 }
 
-                // --- 位置逻辑重构 ---
-                let finalLoc = '';
-                const isDefaultLoc = (this.selectedLocation === '选择位置' || this.selectedLocation === '');
+                // --- 位置处理逻辑 ---
+                let finalLoc: string = '';
+                const hasSelectedPoi = (this.selectedLocation !== '选择位置' && this.selectedLocation !== '');
 
-                if (isDefaultLoc) {
-                  // 场景 A：未选位置。优先显示省份，定位中则显示火星
-                  if (currentProv && currentProv !== '' && currentProv !== '定位中...' && currentProv !== '未知省份') {
-                    finalLoc = currentProv;
+                if (hasSelectedPoi) {
+                  if (this.selectedLocation.includes(currentCity) && currentCity !== '') {
+                    finalLoc = this.selectedLocation;
                   } else {
-                    finalLoc = '未知地区 · 火星';
+                    finalLoc = currentCity !== '' ? `${currentCity} · ${this.selectedLocation}` : this.selectedLocation;
                   }
                 } else {
-                  // 场景 B：选了位置。由于搜索已锁定城市，直接：市 · 详细地名
-                  const selected = this.selectedLocation;
-                  const city = this.currentCity;
-
-                  // 防止出现 “武汉市 · 武汉市”
-                  if (selected === city || selected.startsWith(city)) {
-                    finalLoc = selected;
+                  if (currentProv && currentProv !== '定位中...' && currentProv !== '未知省份') {
+                    finalLoc = (currentProv === currentCity) ? currentProv : `${currentProv} · ${currentCity}`;
+                  } else if (currentCity && currentCity !== '定位中...') {
+                    finalLoc = currentCity;
                   } else {
-                    finalLoc = `${city} · ${selected}`;
+                    finalLoc = '未知地区 · 火星';
                   }
                 }
 
@@ -189,7 +199,8 @@ struct PostDynamicView {
 
                 const newPost: PostItem = {
                   id: Date.now().toString(),
-                  userName: uName || '匿名探险家',
+                  userId: uid, // 此时 uid 确定是 string
+                  userName: uName,
                   avatar: $r('app.media.ic_mine_active'),
                   text: this.postText,
                   location: finalLoc,
@@ -199,26 +210,26 @@ struct PostDynamicView {
                   likeCount: 0,
                   isCollected: false,
                   comments: [],
-                  tags: combinedTags
+                  tags: combinedTags,
+                  likeUserIds: [],
+                  collectUserIds: []
                 };
 
+                // 传入 uid，确保第二个参数是 string
                 await postRepo.insertPost(newPost, uid);
 
-                let posts = AppStorage.get<PostItem[]>('globalPostList') || [];
+                let posts = AppStorage.get<PostItem[]>('globalPostList') ?? [];
                 AppStorage.setOrCreate('globalPostList', [newPost, ...posts]);
-
-                // 清空草稿
                 AppStorage.setOrCreate('post_draft_obj', null);
 
                 promptAction.showToast({ message: '发布成功' });
                 this.mainIndex = 1;
-
-                setTimeout(() => {
-                  router.back();
-                }, 500);
+                setTimeout(() => { router.back(); }, 500);
 
               } catch (err) {
-                promptAction.showToast({ message: `发布失败: ${err.message || '未知错误'}` });
+                // 这里的 err 也要处理类型
+                const errorMsg = (err instanceof Error) ? err.message : '未知错误';
+                promptAction.showToast({ message: `发布失败: ${errorMsg}` });
               }
             })
         }
@@ -319,7 +330,7 @@ struct PostDynamicView {
               }.onClick(() => { this.selectedLocation = item.name;
                 if (item.adname) {
                   this.selectedLocation = item.adname + ' · ' + item.name;
-              }
+                }
                 this.showLocationSearch = false; })
             })
           }.layoutWeight(1).width('100%').divider({ strokeWidth: 1, color: '#F1F3F5' })

@@ -1,5 +1,5 @@
 import { router, promptAction } from '@kit.ArkUI';
-import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA } from '../../../models/ExploreCityData';
+import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA } from '../../../models/CityKey';
 import { ToolkitLogic } from '../../../models/ToolkitLogic';
 import { http } from '@kit.NetworkKit';
 import { textToSpeech } from '@kit.CoreSpeechKit';

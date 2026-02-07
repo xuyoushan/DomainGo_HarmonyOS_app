@@ -1,252 +1,372 @@
 import { router, promptAction } from '@kit.ArkUI';
 import http from '@ohos.net.http';
+import {
+  getCityTraffic,
+  CityTrafficConfig,
+  UniqueTraffic,
+  MetroLine
+} from '../../../models/CityTrafficData';
 
-interface AmapPoi {
-  name: string;
-  address: string;
-  adname: string;
-}
-interface AmapResponse {
-  status: string;
-  pois: AmapPoi[];
-}
+interface AmapPoi { name: string; address: string; adname: string; }
+interface AmapResponse { status: string; pois: AmapPoi[]; }
 
 @Entry
 @Component
 struct TravelServiceView {
   @StorageLink('currentCity') currentCity: string = '武汉市';
-  @State selectedIndex: number = 2; // 默认切到交通，方便你调试
+  @State selectedIndex: number = 2;
   @State destination: string = '';
-  @State hotelKeyword: string = '';
-
-  // 交通模块状态
-  @State searchResults: AmapPoi[] = [];
+  @State poiList: string[] = [];
   @State isShowPlatforms: boolean = false;
   @State currentMode: string = '';
-  @State activePlatforms: string[] = []; // 动态存放当前模式下的平台列表
+  @State activePlatforms: string[] = [];
+  @State cityConfig: CityTrafficConfig = getCityTraffic(this.currentCity);
+  @State searchSuggestions: string[] = [];
+  @State isShowingSearch: boolean = false;
+  @State isShowTrafficDetail: boolean = false;
+  @State selectedTrafficItem: UniqueTraffic | null = null;
+
+  onCityChange() {
+    this.cityConfig = getCityTraffic(this.currentCity);
+  }
 
   aboutToAppear() {
     let params = router.getParams() as Record<string, string>;
     if (params) {
-      if (params.defaultType === '门票预订') this.selectedIndex = 0;
-      if (params.defaultType === '酒店住宿') this.selectedIndex = 1;
-      if (params.defaultType === '交通出行') this.selectedIndex = 2;
+      const type = params.defaultType as string;
+      if (type === '休闲娱乐') this.selectedIndex = 0;
+      else if (type === '酒店住宿') this.selectedIndex = 1;
+      else if (type === '交通出行') this.selectedIndex = 2;
     }
   }
 
-  // --- 1. 高德搜索逻辑 ---
   async searchPoi(keyword: string) {
     if (!keyword) {
-      this.searchResults = [];
+      this.poiList = [];
       return;
     }
     let httpRequest = http.createHttp();
     const amapKey = 'd4552bc3e20af2857f9cfd5ac95ded1d';
     try {
-      let url = `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(keyword)}&city=${encodeURIComponent(this.currentCity)}&offset=10&page=1&key=${amapKey}`;
+      let url = `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(keyword)}&city=${encodeURIComponent(this.currentCity)}&offset=5&page=1&key=${amapKey}`;
       let response = await httpRequest.request(url);
       if (response.responseCode === 200) {
         let res = JSON.parse(response.result as string) as AmapResponse;
         if (res.status === '1' && res.pois) {
-          this.searchResults = res.pois;
+          // 修改点：统一使用内嵌预测
+          this.poiList = res.pois.map(p => p.name);
         }
       }
     } catch (err) {
-      console.error('POI_Search_Error: ' + JSON.stringify(err));
+      console.error('POI_Search_Error');
     } finally {
       httpRequest.destroy();
     }
   }
 
-  // --- 2. 完善后的平台选择唤起逻辑 ---
   openPicker(mode: string) {
     this.currentMode = mode;
-    // 根据业务逻辑分配平台
-    if (mode === 'taxi') {
-      this.activePlatforms = ['高德', '百度', '腾讯', '滴滴'];
-    } else if (mode === 'rent') {
-      this.activePlatforms = ['携程租车', '哈啰租车', '神州租车'];
-    } else if (mode === 'bike') {
-      this.activePlatforms = ['美团', '哈啰', '微信', '支付宝'];
-    } else if (mode === 'bus') {
-      this.activePlatforms = ['微信', '支付宝'];
-    }
+    const platformMap: Record<string, string[]> = {
+      'taxi': ['高德', '百度', '神州', '滴滴'],
+      'bike': ['美团', '哈啰', '微信', '支付宝'],
+      'bus': ['微信', '支付宝', '车来了']
+    };
+    this.activePlatforms = platformMap[mode] || ['高德'];
     this.isShowPlatforms = true;
   }
 
-  // --- 3. 核心跳转函数 ---
-  doJump(platform: string) {
-    let uri = '';
-    const city = this.currentCity.replace('市', '');
-    const dest = this.destination;
-
-    if (this.currentMode === 'taxi' || this.currentMode === 'bus') {
-      if (!dest) {
-        promptAction.showToast({ message: '请先输入或选择目的地' });
-        return;
-      }
-      if (platform === '高德') uri = `amapuri://route/plan/?dname=${encodeURIComponent(city + dest)}&dev=0&t=0`;
-      // ... 其他 scheme 逻辑
-    } else if (this.currentMode === 'bike') {
-      if (platform === '微信') uri = 'weixin://dl/scan';
-      // ... 其他 scheme 逻辑
-    }
-
+  handleJump(platform: string) {
     this.isShowPlatforms = false;
-    promptAction.showToast({ message: `正在唤起 ${platform}...` });
+    promptAction.showToast({
+      message: `正在唤起 ${platform}，前往：${this.destination || '目的地'}`,
+      duration: 2000
+    });
   }
 
   build() {
-    Stack({ alignContent: Alignment.Bottom }) {
-      // 背景层：点击此处关闭搜索预测和平台弹窗
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor('#F4F6F8')
-        .onClick(() => {
-          this.searchResults = [];
-          this.isShowPlatforms = false;
-        })
+    Stack({ alignContent: Alignment.Top }) {
+      Column().width('100%').height('100%').backgroundColor('#F8F9FB')
 
       Column() {
-        // 自定义标题栏
-        Row() {
-          SymbolGlyph($r('sys.symbol.chevron_left')).fontSize(24).onClick(() => router.back())
-          Text('文旅助手').fontSize(20).fontWeight(FontWeight.Bold).margin({ left: 12 })
-          Blank()
-          Text(this.currentCity).fontSize(14).fontColor('#666')
-        }
-        .width('100%').padding(16).backgroundColor(Color.White)
+        this.HeaderBar()
 
         Tabs({ index: this.selectedIndex }) {
-          TabContent() { this.TicketModule() }.tabBar('🎫 门票')
-          TabContent() { this.HotelModule() }.tabBar('🏨 酒店')
-          TabContent() { this.TrafficModule() }.tabBar('🚗 交通')
+          TabContent() { this.LeisureModule() }.tabBar(this.TabBuilder('🎪 休闲', 0))
+          TabContent() { this.HotelModule() }.tabBar(this.TabBuilder('🏨 酒店', 1))
+          TabContent() { this.TrafficModule() }.tabBar(this.TabBuilder('🚗 交通', 2))
         }
         .barMode(BarMode.Fixed)
+        .barHeight(56)
         .onChange(index => this.selectedIndex = index)
       }
-      .width('100%').height('100%')
+      .width('100%')
 
-      // 4. 搜索预测浮层 (通过 Stack 层级浮在最上)
-      if (this.searchResults.length > 0) {
-        this.SuggestionOverlay()
-      }
+      if (this.isShowPlatforms) this.PlatformPicker()
 
-      // 5. 平台选择底面板
-      if (this.isShowPlatforms) {
-        this.PlatformPicker()
+      if (this.isShowTrafficDetail && this.selectedTrafficItem) {
+        this.DetailPanel(
+          this.selectedTrafficItem.name,
+          `${this.selectedTrafficItem.type}\n运营时间：${this.selectedTrafficItem.operationTime}\n票价：${this.selectedTrafficItem.price}\n\n${this.selectedTrafficItem.desc}`,
+          this.selectedTrafficItem.color,
+          () => this.isShowTrafficDetail = false
+        )
       }
     }
   }
 
-  // --- 交通模块 UI ---
   @Builder TrafficModule() {
     Scroll() {
-      Column({ space: 24 }) {
-        Column({ space: 8 }) {
-          Text('你要去哪儿？').fontSize(32).fontWeight(FontWeight.Bold).fontColor('#1A1A1A')
-          Text(`在${this.currentCity}享受智慧出行`).fontSize(14).fontColor('#999')
-        }.alignItems(HorizontalAlign.Start).width('100%')
+      if (!this.cityConfig) {
+        Column({ space: 15 }) {
+          LoadingProgress().width(60).height(60).color('#007DFF')
+          Text(`正在检索 ${this.currentCity} 交通数据...`).fontSize(14).fontColor('#666')
+        }.width('100%').height('80%').justifyContent(FlexAlign.Center)
+      } else {
+        Column({ space: 24 }) {
+          this.HeroSection()
 
-        // 搜索框
-        Search({ placeholder: '输入目的地，一键多平台比价...', value: this.destination })
-          .height(56)
-          .backgroundColor(Color.White)
-          .borderRadius(16)
-          .border({ width: 1, color: '#F0F0F0' })
-          .onChange(v => {
-            this.destination = v;
-            this.searchPoi(v);
-          })
+          Column() {
+            Search({ placeholder: '搜地点、查线路...', value: this.destination })
+              .height(54)
+              .backgroundColor(Color.White)
+              .borderRadius(this.poiList.length > 0 ? { topLeft: 12, topRight: 12 } : 12)
+              .onChange(v => {
+                this.destination = v;
+                this.searchPoi(v);
+              })
 
-        // 功能矩阵（非对称左对齐布局）
-        this.SectionTitle('打车/导航 (自动填充)')
-        this.TrafficGrid(['高德', '百度', '腾讯', '滴滴'], 'taxi', '#FF9500')
+            if (this.destination.length > 0 && this.poiList.length > 0) {
+              List() {
+                ForEach(this.poiList, (item: string) => {
+                  ListItem() {
+                    Text(item).fontSize(14).width('100%').padding(15)
+                      .onClick(() => {
+                        this.destination = item;
+                        this.poiList = [];
+                        focusControl.requestFocus('');
+                      })
+                  }.border({ width: { bottom: 0.5 }, color: '#f5f5f5' })
+                }, (item: string) => item)
+              }
+              .backgroundColor(Color.White)
+              .width('100%')
+              .borderRadius({ bottomLeft: 12, bottomRight: 12 })
+              .shadow({ radius: 10, color: '#10000000' })
+              .constraintSize({ maxHeight: 200 })
+            }
+          }.width('100%').zIndex(100)
 
-        this.SectionTitle('租车自驾 (自由探索)')
-        this.TrafficGrid(['携程租车', '哈啰租车', '神州租车'], 'rent', '#4CD964')
+          if (this.cityConfig.uniqueTraffic?.length > 0) {
+            Column({ space: 12 }) {
+              this.ModuleTitle(`${this.currentCity} · 特色出行`)
+              List({ space: 16 }) {
+                ForEach(this.cityConfig.uniqueTraffic, (item: UniqueTraffic) => {
+                  ListItem() { this.UniqueTrafficCard(item) }
+                }, (item: UniqueTraffic) => item.name)
+              }.listDirection(Axis.Horizontal).height(130).edgeEffect(EdgeEffect.Spring)
+            }.alignItems(HorizontalAlign.Start)
+          }
 
-        this.SectionTitle('低碳出行 (直接扫码)')
-        this.TrafficGrid(['美团', '哈啰', '微信', '支付宝'], 'bike', '#007DFF')
+          if (this.cityConfig.metro) {
+            Column({ space: 12 }) {
+              Row() {
+                this.ModuleTitle('轨道交通概览')
+                Blank()
+                Text(this.cityConfig.metro.basePrice || '价格查询中').fontSize(14).fontWeight(700).fontColor('#FF9500')
+              }.width('100%')
 
-      }.padding(20).alignItems(HorizontalAlign.Start)
+              Flex({ wrap: FlexWrap.Wrap }) {
+                ForEach(this.cityConfig.metro.lines, (line: MetroLine) => {
+                  Row() {
+                    Circle({ width: 8, height: 8 }).fill(line.color)
+                    Text(line.name).fontSize(13).margin({ left: 6 }).fontWeight(500)
+                  }
+                  .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+                  .margin({ right: 10, bottom: 12 })
+                  .backgroundColor(Color.White)
+                  .borderRadius(10)
+                  .shadow({ radius: 4, color: '#05000000' })
+                  .onClick(() => {
+                    // 让地铁线路发挥作用：拼装并显示详情
+                    this.selectedTrafficItem = {
+                      name: line.name,
+                      type: '城市轨道交通',
+                      price: this.cityConfig.metro.basePrice,
+                      operationTime: '详见站点公告',
+                      desc: line.desc,
+                      color: line.color
+                    };
+                    this.isShowTrafficDetail = true;
+                  })
+                })
+              }
+              Text(`* ${this.cityConfig.metro.notice || '请以车站实时公告为准'}`).fontSize(11).fontColor('#999')
+            }.alignItems(HorizontalAlign.Start)
+          }
+
+          Column({ space: 12 }) {
+            this.ModuleTitle('第三方出行服务')
+            Row({ space: 12 }) {
+              this.ServiceEntry('一键叫车', $r('sys.symbol.car_fill'), '#FF9500', 'taxi')
+              this.ServiceEntry('扫码单车', $r('sys.symbol.bicycle'), '#4CD964', 'bike')
+              this.ServiceEntry('实时公交', $r('sys.symbol.bus_fill'), '#007DFF', 'bus')
+            }.width('100%')
+          }.alignItems(HorizontalAlign.Start)
+
+          Column().height(60)
+        }.padding(20).onClick(() => { if (this.poiList.length > 0) this.poiList = [] })
+      }
     }.scrollBar(BarState.Off)
   }
 
-  @Builder SuggestionOverlay() {
-    Column() {
-      ForEach(this.searchResults, (poi: AmapPoi) => {
+  @Builder
+  UniqueTrafficCard(item: UniqueTraffic) {
+    Column({ space: 6 }) {
+      Row() {
+        Text(item.name)
+          .fontSize(20)
+          .fontWeight(800)
+          .fontColor(Color.White)
+
+        Text(item.type)
+          .fontSize(10)
+          .fontColor(Color.White)
+          .backgroundColor('#30FFFFFF')
+          .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+          .borderRadius(10)
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.SpaceBetween)
+      .alignItems(VerticalAlign.Center)
+
+      Blank()
+
+      Row() {
+        Text('查看详情')
+          .fontSize(11)
+          .fontColor(Color.White)
+          .opacity(0.75)
+          .fontWeight(500)
+          .letterSpacing(1)
+
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(14)
+          .fontColor([Color.White])
+          .opacity(0.75)
+          .margin({ left: 4 })
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.End)
+    }
+    .width(220)
+    .height(125)
+    .padding(18)
+    .borderRadius(24)
+    .linearGradient({
+      angle: 135,
+      colors: [
+        [item.color, 0.55],
+        [item.color, 1.0]
+      ]
+    })
+    .shadow({
+      radius: 20,
+      color: `${item.color}33`,
+      offsetY: 10
+    })
+    .onClick(() => {
+      this.selectedTrafficItem = item;
+      this.isShowTrafficDetail = true;
+    })
+  }
+
+
+  @Builder DetailPanel(title: string, content: string, color: string, onClose: () => void) {
+    Stack() {
+      Rect().fill('#90000000').width('100%').height('100%').onClick(onClose)
+      Column({ space: 20 }) {
         Row() {
-          SymbolGlyph($r('sys.symbol.map')).fontSize(18).fontColor(['#CCC'])
-          Column() {
-            Text(poi.name).fontSize(15).fontWeight(FontWeight.Medium)
-            Text(poi.address).fontSize(11).fontColor('#999').maxLines(1).textOverflow({overflow: TextOverflow.Ellipsis})
-          }.alignItems(HorizontalAlign.Start).margin({ left: 12 }).layoutWeight(1)
-        }
-        .width('100%').padding(16).border({ width: { bottom: 0.5 }, color: '#F5F5F5' })
-        .onClick(() => {
-          this.destination = poi.name;
-          this.searchResults = [];
-          this.openPicker('taxi');
-        })
-      })
-    }
-    .width('92%')
-    .backgroundColor(Color.White)
-    .borderRadius(16)
-    .shadow({ radius: 30, color: '#20000000' })
-    .position({ x: '4%', y: 180 }) // 定位在搜索框下方
-    .zIndex(100)
+          Text(title).fontSize(20).fontWeight(FontWeight.Bold)
+          Blank()
+          SymbolGlyph($r('sys.symbol.xmark')).fontSize(20).fontColor(['#999']).onClick(onClose)
+        }.width('100%')
+
+        Scroll() {
+          Text(content).fontSize(15).lineHeight(24).fontColor('#444')
+        }.width('100%').constraintSize({ maxHeight: '40%' }).scrollBar(BarState.Off)
+
+        Button('我知道了')
+          .width('100%').height(50).backgroundColor(color)
+          .onClick(onClose)
+      }
+      .width('85%').padding(24).backgroundColor(Color.White).borderRadius(28)
+    }.zIndex(300)
   }
 
-  @Builder SectionTitle(title: string) {
-    Text(title).fontSize(16).fontWeight(FontWeight.Bold).fontColor('#333')
+  @Builder HeaderBar() {
+    Row() {
+      SymbolGlyph($r('sys.symbol.chevron_left')).fontSize(24).onClick(() => router.back())
+      Column() {
+        Text('文旅出行助手').fontSize(18).fontWeight(FontWeight.Bold)
+        Text(this.currentCity).fontSize(11).fontColor('#666').margin({ top: 2 })
+      }.margin({ left: 16 }).alignItems(HorizontalAlign.Start)
+      Blank()
+      SymbolGlyph($r('sys.symbol.location_north_up_right_and_circle_dotted_fill')).fontSize(16).fontColor(['#007DFF'])
+        .padding(8).backgroundColor('#E6F2FF').borderRadius(20)
+    }.width('100%').padding(16).backgroundColor(Color.White)
   }
 
-  @Builder TrafficGrid(platforms: string[], mode: string, color: string) {
-    Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-      ForEach(platforms, (name: string) => {
-        Column() {
-          Circle({ width: 48, height: 48 }).fill(color + '15')
-            .overlay(this.IconText(name[0], color), { align: Alignment.Center })
-          Text(name).fontSize(12).margin({ top: 8 }).fontColor('#444')
-        }
-        .width('22%').margin({ bottom: 16, right: '3%' })
-        .onClick(() => this.openPicker(mode))
-      })
+  @Builder TabBuilder(title: string, index: number) {
+    Column() {
+      Text(title).fontSize(14).fontColor(this.selectedIndex === index ? '#1A1A1A' : '#999').fontWeight(this.selectedIndex === index ? 700 : 400)
+      if (this.selectedIndex === index) Rect().width(20).height(3).fill('#007DFF').radius(2).margin({ top: 4 })
     }
+  }
+
+  @Builder HeroSection() {
+    Row() {
+      Column({ space: 4 }) {
+        Text('你好，寻域者').fontSize(24).fontWeight(FontWeight.Bold)
+        Text('让每一次出发都充满新奇').fontSize(13).fontColor('#666')
+      }.alignItems(HorizontalAlign.Start)
+      Blank()
+      Column() {
+        SymbolGlyph($r('sys.symbol.leaf_fill')).fontSize(20).fontColor(['#4CD964'])
+        Text('低碳行').fontSize(10).fontColor('#4CD964').margin({ top: 2 })
+      }.padding(8).backgroundColor('#F0F9F4').borderRadius(12)
+    }.width('100%')
+  }
+
+  @Builder ServiceEntry(label: string, icon: Resource, color: string, mode: string) {
+    Column({ space: 8 }) {
+      Stack() {
+        Circle({ width: 50, height: 50 }).fill(color).opacity(0.1)
+        SymbolGlyph(icon).fontSize(24).fontColor([color])
+      }
+      Text(label).fontSize(12).fontColor('#333')
+    }.layoutWeight(1).padding(16).backgroundColor(Color.White).borderRadius(16).onClick(() => this.openPicker(mode))
   }
 
   @Builder PlatformPicker() {
     Stack({ alignContent: Alignment.Bottom }) {
-      // 遮罩层
       Rect().fill('#80000000').width('100%').height('100%').onClick(() => this.isShowPlatforms = false)
-
-      // 弹窗抽屉
       Column() {
-        Text('选择出发平台').fontSize(18).fontWeight(FontWeight.Bold).margin({ bottom: 24 })
+        Row().width(40).height(5).backgroundColor('#DDD').borderRadius(3).margin({ bottom: 20 })
+        Text('选择服务平台').fontSize(16).fontWeight(FontWeight.Bold).margin({ bottom: 25 })
         Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceAround }) {
           ForEach(this.activePlatforms, (p: string) => {
             Column() {
-              Circle({ width: 56, height: 56 }).fill('#F5F7FA')
-                .overlay(this.IconText(p[0], '#1A1A1A'), { align: Alignment.Center })
+              Stack() { Circle({ width: 56, height: 56 }).fill('#F5F7FA'); Text(p[0]).fontSize(20).fontWeight(700) }
               Text(p).fontSize(12).margin({ top: 10 })
-            }.onClick(() => this.doJump(p))
+            }.width('25%').onClick(() => this.handleJump(p))
           })
         }
-        Button('取消').margin({ top: 32 }).width('100%').backgroundColor('#F5F5F5').fontColor('#666')
-          .onClick(() => this.isShowPlatforms = false)
-      }
-      .padding(24).backgroundColor(Color.White).borderRadius({ topLeft: 24, topRight: 24 })
-    }.width('100%').height('100%').zIndex(200)
+        Button('取消').margin({ top: 30, bottom: 10 }).width('100%').height(50).backgroundColor('#F5F5F5').fontColor('#666').onClick(() => this.isShowPlatforms = false)
+      }.padding(24).backgroundColor(Color.White).borderRadius({ topLeft: 24, topRight: 24 })
+    }.zIndex(200)
   }
 
-  @Builder IconText(char: string, color: string) {
-    Text(char).fontColor(color).fontWeight(FontWeight.Bold).fontSize(18)
-  }
-
-  // 门票与酒店保持原逻辑
-  @Builder TicketModule() { /* ... */ }
-  @Builder HotelModule() { /* ... */ }
+  @Builder ModuleTitle(title: string) { Text(title).fontSize(16).fontWeight(700).fontColor('#1A1A1A') }
+  @Builder LeisureModule() { Column() { Text('休闲生活板块开发中').fontColor('#999') }.height('60%').justifyContent(FlexAlign.Center) }
+  @Builder HotelModule() { Column() { Text('精选酒店模块开发中').fontColor('#999') }.height('60%').justifyContent(FlexAlign.Center) }
 }

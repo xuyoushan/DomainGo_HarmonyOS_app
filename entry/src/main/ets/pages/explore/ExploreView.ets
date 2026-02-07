@@ -5,7 +5,7 @@ import { PROVINCE_CITY_DATA } from '../../models/CityData';
 import { CITY_BANNER_CONFIG, CityBanner } from '../../models/CityBannerData';
 import { promptAction, router, display, window } from '@kit.ArkUI';
 import { CITY_ROUTES, TravelRoute } from '../../models/RouteData';
-import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA, CityExploreConfig } from '../../models/ExploreCityData';
+import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA, CityExploreConfig } from '../../models/CityKey';
 import { PreferenceManager } from '../../services/PreferenceManager';
 
 interface WeatherNow { temperature: string; text: string; }
@@ -226,59 +226,41 @@ export struct ExploreView {
   }
 
   async fetchRealNews() {
-    // --- 💡 方案开关 ---
-    const USE_REAL_CRAWLER = true;  // 模式A：后端抓取（做PPT/录视频时开启）
-    // const USE_REAL_CRAWLER = false; // 模式B：本地数据（现场演示/提交代码时开启）
+    const USE_REAL_CRAWLER = true;
     if (!USE_REAL_CRAWLER) {
-      // 【方案二：调用本地数据】—— 模拟一个加载过程，显得更真实
       this.newsList = ["正在连接文旅数据中心...", "正在同步城市快报..."];
-      setTimeout(() => {
-        this.showLocalNews();
-        console.info("已加载本地精品文旅数据");
-      }, 800); // 故意延迟 0.8s，做出“请求”的视觉效果
       return;
     }
-
-    // 【方案一：后端抓取模式】—— 仅在开启模式A时执行
     let isFinished = false;
     setTimeout(() => {
       if (!isFinished) {
-        this.showLocalNews();
         isFinished = true;
       }
-    }, 3000);
+    }, 5000);
 
     let httpRequest = http.createHttp();
-    const url = `http://192.168.103.83:5000/get_news/${encodeURIComponent(this.currentCity)}`;
+    const url = `http://192.168.191.83:5000/get_news/${encodeURIComponent(this.currentCity)}`;
+
     try {
       let response = await httpRequest.request(url, {
         method: http.RequestMethod.GET,
-        connectTimeout: 4000,
+        connectTimeout: 6000, // 爬虫可能慢，超时给长点
         expectDataType: http.HttpDataType.OBJECT
       });
-
       const res = response.result as MyNewsResponse;
-      const localData = CITY_EXPLORE_MAP[this.currentCity] || DEFAULT_EXPLORE_DATA;
 
-      if (!isFinished && res.code === 200 && res.news.length > 0) {
-        const realPart = res.news.slice(0, 3);
-        const localPart = localData.news.slice(0, 3);
-        this.newsList = realPart.concat(localPart).sort(() => Math.random() - 0.5);
+      if (res.code === 200 && res.news && res.news.length > 0) {
+        this.newsList = res.news;
         isFinished = true;
+        console.info(`[Explore] 已同步 ${this.currentCity} 的全真新闻`);
+      } else {
+        this.newsList = [`暂未发现 ${this.currentCity} 的今日快报`];
       }
     } catch (err) {
-      if (!isFinished) {
-        this.showLocalNews();
-        isFinished = true;
-      }
+      this.newsList = ["文旅部动态更新中..."]; // 失败时的占位符
     } finally {
       httpRequest.destroy();
     }
-  }
-
-  showLocalNews() {
-    const localData = CITY_EXPLORE_MAP[this.currentCity] || DEFAULT_EXPLORE_DATA;
-    this.newsList = [...localData.news].sort(() => Math.random() - 0.5);
   }
 
   async fetchHotTopics() {

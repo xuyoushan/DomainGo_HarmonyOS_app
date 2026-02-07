@@ -1,18 +1,25 @@
-import router from '@ohos.router';
-import promptAction from '@ohos.promptAction';
+import { router, promptAction, componentSnapshot } from '@kit.ArkUI';
+import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import { fileIo as fs } from '@kit.CoreFileKit';
 import { PostItem, CommentItem } from '../../models/PostItem';
+import image from '@ohos.multimedia.image';
+import { postRepo } from '../../services/PostRepository';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 @Entry
 @Component
 struct PostDetailView {
   @StorageLink('globalPostList') globalPosts: PostItem[] = [];
+  @StorageLink('isLoggedIn') isLoggedIn: boolean = false;
+  @StorageLink('currentUserId') currentUserId: string = '';
 
   private params: Record<string, Object> = (router.getParams() as Record<string, Object>) || {};
 
   @State postData: PostItem = (this.params.postData as PostItem) ?? {
     id: '0',
+    userId: '',
     userName: '加载中...',
-    avatar: $r('app.media.ic_mine_active'),
+    avatar: $r('app.media.start'),
     text: '',
     location: '',
     timestamp: Date.now(),
@@ -24,76 +31,185 @@ struct PostDetailView {
   };
 
   @State commentInput: string = '';
-
   @State showBigImage: boolean = false;
   @State currentPreviewImg: string | Resource = '';
-
   @State replyPlaceholder: string = '写下你的评论...';
   @State replyingToUser: string = '';
 
-  aboutToAppear() {
-    const params = router.getParams() as Record<string, Object>;
-    if (params && params.postData) {
-      this.postData = params.postData as PostItem;
-      if (!this.postData.comments) {
-        this.postData.comments = [];
-      }
-    }
-  }
+  @State isExpanded: boolean = false;
+  private readonly MAX_LINES: number = 4;
 
-  syncChanges() {
+  private snapshotId: string = 'root_post_detail';
+
+  async toggleCollect() {
+    if (!this.checkAuth()) return;
+
     const index = this.globalPosts.findIndex(p => p.id === this.postData.id);
-    if (index !== -1) {
-      this.globalPosts[index].isLiked = this.postData.isLiked;
-      this.globalPosts[index].likeCount = this.postData.likeCount;
-      this.globalPosts[index].isCollected = this.postData.isCollected;
-      this.globalPosts[index].comments = [...this.postData.comments];
+    if (index === -1) return;
 
-      this.postData.isLiked = this.postData.isLiked;
-      this.postData.isCollected = this.postData.isCollected;
-      this.postData.comments = [...this.postData.comments];
+    let p = this.globalPosts[index];
+    if (!p.collectUserIds) p.collectUserIds = [];
 
+    const uIdx = p.collectUserIds.indexOf(this.currentUserId);
+    if (uIdx === -1) {
+      p.collectUserIds.push(this.currentUserId);
+    } else {
+      p.collectUserIds.splice(uIdx, 1);
+    }
 
-      AppStorage.SetOrCreate('globalPostList', [...this.globalPosts]);
+    p.isCollected = p.collectUserIds.includes(this.currentUserId);
+    this.globalPosts[index] = p;
+    AppStorage.setOrCreate('globalPostList', [...this.globalPosts]);
+
+    this.globalPosts[index] = p;
+    AppStorage.setOrCreate('globalPostList', this.globalPosts.slice());
+    await postRepo.updatePostStatus(p.id, p.isLiked, p.isCollected, p.likeCount);
+  }
+
+  async toggleLike() {
+    if (!this.checkAuth()) return;
+
+    const index = this.globalPosts.findIndex(p => p.id === this.postData.id);
+    if (index === -1) return;
+
+    let p = this.globalPosts[index];
+    if (!p.likeUserIds) p.likeUserIds = [];
+
+    const uIdx = p.likeUserIds.indexOf(this.currentUserId);
+    if (uIdx === -1) {
+      p.likeUserIds.push(this.currentUserId);
+    } else {
+      p.likeUserIds.splice(uIdx, 1);
+    }
+
+    p.likeCount = p.likeUserIds.length;
+    p.isLiked = p.likeUserIds.includes(this.currentUserId);
+
+    this.globalPosts[index] = p;
+    AppStorage.setOrCreate('globalPostList', [...this.globalPosts]);
+
+    this.globalPosts[index] = p;
+    AppStorage.setOrCreate('globalPostList', this.globalPosts.slice());
+    await postRepo.updatePostStatus(p.id, p.isLiked, p.isCollected, p.likeCount);
+  }
+
+  aboutToAppear() {
+    this.syncFromGlobal();
+  }
+
+  syncFromGlobal() {
+    const p = this.globalPosts.find(item => item.id === this.postData.id);
+    if (!p) return;
+
+    const uid = this.currentUserId;
+    this.postData.id = p.id;
+    this.postData.userId = p.userId;
+    this.postData.userName = p.userName;
+    this.postData.text = p.text;
+    this.postData.images = p.images;
+    this.postData.location = p.location;
+    this.postData.timestamp = p.timestamp;
+    this.postData.comments = p.comments || [];
+    this.postData.likeUserIds = p.likeUserIds || [];
+    this.postData.collectUserIds = p.collectUserIds || [];
+
+    this.postData.isLiked = this.postData.likeUserIds.includes(uid);
+    this.postData.isCollected = this.postData.collectUserIds.includes(uid);
+    this.postData.likeCount = this.postData.likeUserIds.length;
+  }
+
+  getRelativeTime(time: number): string {
+    const date = new Date(time);
+    const h = date.getHours();
+    const m = date.getMinutes();
+    const mm = m < 10 ? `0${m}` : `${m}`;
+    return `${date.getMonth() + 1}月${date.getDate()}日 ${h}:${mm}`;
+  }
+
+  async saveToAlbum() {
+    try {
+      const pixmap: image.PixelMap = await componentSnapshot.get(this.snapshotId);
+      const imagePacker = image.createImagePacker();
+      const buffer = await imagePacker.packing(pixmap, { format: 'image/jpeg', quality: 100 });
+      const helper = photoAccessHelper.getPhotoAccessHelper(getContext(this));
+      const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, 'jpg');
+      const file = await fs.open(uri, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
+      await fs.write(file.fd, buffer);
+      await fs.close(file.fd);
+      promptAction.showToast({ message: '截图已存至相册' });
+    } catch (err) {
+      promptAction.showToast({ message: '保存失败' });
     }
   }
 
-  sendComment() {
-    if (!this.commentInput.trim()) {
-      promptAction.showToast({ message: '评论内容不能为空' });
+  checkAuth(): boolean {
+    if (!this.isLoggedIn) {
+      promptAction.showToast({ message: '请先登录探索更多精彩' });
+      router.pushUrl({ url: 'pages/mine/RegisterView' });
+      return false;
+    }
+    return true;
+  }
+
+  async handleDeletePost(): Promise<void> {
+    if (this.postData.userId !== this.currentUserId) {
+      promptAction.showToast({ message: '无权删除他人帖子' });
       return;
     }
 
-    let finalContent = this.commentInput;
+    promptAction.showDialog({
+      title: '确认删除',
+      message: '删除后将无法恢复，确定删除吗？',
+      buttons: [
+        { text: '取消', color: '#666666' },
+        { text: '确定删除', color: '#FF4D4F' }
+      ]
+    }).then(async (data) => {
+      if (data.index === 1) {
+        const idToDelete = this.postData.id;
+
+        // 1. 同步数据库 (必须先执行或确保执行)
+        await postRepo.deletePost(idToDelete);
+
+        // 2. 同步全局内存 (使用 slice 产生新引用触发所有页面刷新)
+        const newList = this.globalPosts.filter((p: PostItem) => p.id !== idToDelete);
+        AppStorage.setOrCreate('globalPostList', newList.slice());
+
+        promptAction.showToast({ message: '帖子已删除' });
+
+        // 3. 延迟返回，确保状态已写回
+        setTimeout(() => {
+          router.back();
+        }, 100);
+      }
+    });
+  }
+
+  sendComment() {
+    if (!this.checkAuth()) return;
+    if (!this.commentInput.trim()) return;
+
+    const userName = AppStorage.get<string>('userName') || '匿名探险家';
+    let content = this.commentInput;
     if (this.replyingToUser) {
-      finalContent = `回复 @${this.replyingToUser} : ${this.commentInput}`;
+      content = `回复 @${this.replyingToUser} : ${this.commentInput}`;
     }
 
-    const newComment: CommentItem = {
-      userName: '旅行者',
-      avatar: $r('app.media.ic_mine_active'),
-      content: finalContent,
+    const comment: CommentItem = {
+      userName,
+      avatar: $r('app.media.start'),
+      content,
       timestamp: Date.now()
     };
 
-    if (!this.postData.comments) {
-      this.postData.comments = [];
+    const index = this.globalPosts.findIndex(p => p.id === this.postData.id);
+    if (index !== -1) {
+      if (!this.globalPosts[index].comments) this.globalPosts[index].comments = [];
+      this.globalPosts[index].comments.unshift(comment);
+      AppStorage.setOrCreate('globalPostList', [...this.globalPosts]);
+      this.syncFromGlobal();
     }
 
-    if (this.replyingToUser) {
-      const targetIndex = this.postData.comments.findIndex(c => c.userName === this.replyingToUser);
-      if (targetIndex !== -1) {
-        this.postData.comments.splice(targetIndex + 1, 0, newComment);
-      } else {
-        this.postData.comments.unshift(newComment);
-      }
-    } else {
-      this.postData.comments.unshift(newComment);
-    }
-
-    this.syncChanges(); // 同步全局并强行刷新 UI
-
-    // 清空状态
     this.commentInput = '';
     this.replyingToUser = '';
     this.replyPlaceholder = '写下你的评论...';
@@ -116,256 +232,168 @@ struct PostDetailView {
 
           Blank()
 
-          SymbolGlyph($r('sys.symbol.share'))
+          if (this.isLoggedIn && this.postData.userId === this.currentUserId) {
+            SymbolGlyph($r('sys.symbol.dot_grid_2x2'))
+              .fontSize(24)
+              .margin({ right: 20 })
+              .fontColor(['#333333'])
+              .onClick(() => {
+                this.handleDeletePost();
+              })
+          }
+
+          SymbolGlyph($r('sys.symbol.camera_fill'))
             .fontSize(24)
-            .onClick(() => {
-              promptAction.showToast({ message: '链接已复制' })
-            })
+            .onClick(() => this.saveToAlbum())
         }
-        .width('100%')
-        .padding(15)
-        .backgroundColor('#FFFFFF')
+        .width('100%').padding(15).backgroundColor('#FFFFFF')
 
         Scroll() {
           Column() {
             // 作者信息
             Row() {
-              Image(this.postData.avatar)
-                .width(45)
-                .height(45)
-                .borderRadius(22.5)
+              Image($r('app.media.start'))
+                .width(45).height(45).borderRadius(22.5)
                 .onClick(() => {
-                  router.pushUrl({
-                    url: 'pages/mine/UserHomeView',
-                    params: { postData: this.postData }
-                  })
+                  if (!this.checkAuth()) return;
+                  if (this.postData.userId === this.currentUserId) {
+                    router.pushUrl({ url: 'pages/Index', params: { tabIndex: 4 } });
+                  } else {
+                    router.pushUrl({ url: 'pages/mine/UserHomeView', params: { userId: this.postData.userId } });
+                  }
                 })
               Column() {
-                Text(this.postData.userName)
-                  .fontSize(16).fontWeight(FontWeight.Medium)
-                Flex({ direction: FlexDirection.Row, wrap: FlexWrap.Wrap }) {
-                  Text('发布于 ')
-                    .fontSize(12).fontColor('#999999')
+                Text(this.postData.userName).fontSize(16).fontWeight(FontWeight.Medium)
+                Text(this.getRelativeTime(this.postData.timestamp))
+                  .fontSize(12).fontColor('#999999').margin({ top: 2 })
+                Text(this.postData.location || '未知地区·火星').fontSize(12).fontColor('#999999').margin({ top: 2 })
+              }.alignItems(HorizontalAlign.Start).margin({ left: 10 }).layoutWeight(1)
 
-                  Text(this.postData.location || '未知位置')
-                    .fontSize(12).fontColor('#999999')
-                }
-                .margin({ top: 2 })
+            }.width('100%').padding(15)
+
+            Column() {
+              Text(this.postData.text)
+                .fontSize(16)
+                .lineHeight(26)
+                .width('100%')
+                .maxLines(this.isExpanded ? 1000 : this.MAX_LINES)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+              if (!this.isExpanded && this.postData.text.length > 100) {
+                Text('展开全文')
+                  .fontSize(14)
+                  .fontColor('#007DFF')
+                  .margin({ top: 5 })
+                  .onClick(() => { this.isExpanded = true })
+              } else if (this.isExpanded) {
+                Text('收起')
+                  .fontSize(14)
+                  .fontColor('#007DFF')
+                  .margin({ top: 5 })
+                  .onClick(() => { this.isExpanded = false })
               }
-              .alignItems(HorizontalAlign.Start)
-              .margin({ left: 10 }).layoutWeight(1)
-            }
-            .width('100%')
-            .padding(15)
+            }.padding({ left: 15, right: 15, bottom: 15 })
 
-            // 帖子正文
-            Text(this.postData.text)
-              .fontSize(16)
-              .lineHeight(26)
-              .padding(15)
-              .width('100%')
-              .textAlign(TextAlign.Start)
-
-            // --- 帖子图片：Swiper多图 + 点击唤起大图预览 ---
             if (this.postData.images && this.postData.images.length > 0) {
               Swiper() {
                 ForEach(this.postData.images, (img: string | Resource) => {
-                  Stack() {
-                    Image(img)
-                      .width('100%')
-                      .height(450)
-                      .objectFit(ImageFit.Contain)
-                      .onClick(() => {
-                        this.currentPreviewImg = img;
-                        this.showBigImage = true;
-                      })
-                  }
-                  .width('100%')
-                  .height(450)
-                  .backgroundColor('#F1F3F5')
+                  Image(img)
+                    .width('100%').height(450).objectFit(ImageFit.Contain)
+                    .backgroundColor('#F1F3F5')
+                    .onClick(() => {
+                      this.currentPreviewImg = img;
+                      this.showBigImage = true;
+                    })
                 })
-              }
-              .width('100%')
-              .height(450)
-              .indicator(this.postData.images.length > 1)
-              .loop(false)
-              .margin({ bottom: 15 })
+              }.width('100%').height(450).indicator(this.postData.images.length > 1).loop(false).margin({ bottom: 15 })
             }
 
             Divider().strokeWidth(8).color('#F1F3F5')
 
-            // 评论列表
             Column() {
               Row() {
-                Text(`评论 (${this.postData.comments?.length ?? 0})`)
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#333')
+                Text(`评论 (${this.postData.comments?.length ?? 0})`).fontSize(14).fontWeight(FontWeight.Bold).fontColor('#333')
                 Blank()
-              }
-              .width('100%')
-              .padding(15)
+              }.width('100%').padding(15)
 
               if (!this.postData.comments || this.postData.comments.length === 0) {
                 Column() {
                   SymbolGlyph($r('sys.symbol.message_badge_plus')).fontSize(40).fontColor(['#EEEEEE'])
-                  Text('暂无评论，快来抢沙发').fontSize(12).fontColor('#CCCCCC').margin({ top: 10 })
-                }
-                .width('100%')
-                .padding(40)
+                  Text('暂无评论，快来抢沙发...').fontSize(12).fontColor('#CCCCCC').margin({ top: 10 })
+                }.width('100%').padding(40)
               } else {
                 ForEach(this.postData.comments, (comment: CommentItem) => {
                   Row() {
-                    Image(comment.avatar || $r('app.media.ic_mine_active'))
-                      .width(32)
-                      .height(32)
-                      .borderRadius(16)
-
+                    Image($r('app.media.start')).width(32).height(32).borderRadius(16)
                     Column() {
                       Text(comment.userName).fontSize(13).fontColor('#666').fontWeight(FontWeight.Medium)
                       Text(comment.content).fontSize(14).fontColor('#333').margin({ top: 4 }).lineHeight(20)
-                    }
-                    .alignItems(HorizontalAlign.Start)
-                    .margin({ left: 10 })
-                    .layoutWeight(1)
-                  }
-                  .width('100%')
-                  // 【退格罗列修复】如果是回复，则左内边距加大
-                  .padding({
-                    left: (comment.content.includes('回复 @')) ? 50 : 15,
-                    right: 15,
-                    bottom: 20
-                  })
-                  .alignItems(VerticalAlign.Top)
-                  // 点击评论触发回复
+                    }.alignItems(HorizontalAlign.Start).margin({ left: 10 }).layoutWeight(1)
+                  }.width('100%').padding({ left: 15, right: 15, bottom: 20 }).alignItems(VerticalAlign.Top)
                   .onClick(() => {
+                    if (!this.checkAuth()) return;
                     this.replyingToUser = comment.userName;
                     this.replyPlaceholder = `回复 @${comment.userName}...`;
-                    promptAction.showToast({ message: `回复：${comment.userName}` });
                   })
                 })
               }
-            }
-            .width('100%')
+            }.width('100%')
           }
-        }
-        .layoutWeight(1)
-        .edgeEffect(EdgeEffect.Spring)
+        }.layoutWeight(1).edgeEffect(EdgeEffect.Spring).id(this.snapshotId)
 
-        // 【底部交互区修复版】
         Column() {
-          // 评论输入行
           Row() {
             TextInput({ placeholder: this.replyPlaceholder, text: this.commentInput })
-              .layoutWeight(1)
-              .height(36)
-              .fontSize(14)
-              .backgroundColor('#F5F5F5')
-              .onChange((v) => this.commentInput = v)
-
-            Text('发送')
-              .fontColor(this.commentInput.trim() ? '#007DFF' : '#999999')
-              .fontSize(14)
-              .fontWeight(FontWeight.Bold)
-              .margin({ left: 10 })
+              .layoutWeight(1).height(38).fontSize(14).backgroundColor('#F5F5F5').onChange((v) => this.commentInput = v)
+            Text('发送').fontColor(this.commentInput.trim() ? '#007DFF' : '#999999').fontSize(14).fontWeight(FontWeight.Bold).margin({ left: 10 })
               .onClick(() => this.sendComment())
-          }
-          .width('100%')
-          .padding({ left: 15, right: 15, top: 10, bottom: 5 })
+          }.width('100%').padding({ left: 15, right: 15, top: 10, bottom: 5 })
 
-          // 按钮行
           Row() {
-            // 点赞按钮
-            Row() {
-              this.BottomAction(
-                this.postData.isLiked ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'),
-                this.postData.isLiked ? (this.postData.likeCount > 0 ? this.postData.likeCount.toString() : '已赞') : (this.postData.likeCount > 0 ? this.postData.likeCount.toString() : '点赞'),
-                this.postData.isLiked ? '#FF4D4F' : '#666666'
-              )
-            }
-            .layoutWeight(1)
-            .height('100%')
-            .justifyContent(FlexAlign.Center)
-            .onClick(() => {
-              this.postData.isLiked = !this.postData.isLiked
-              this.postData.likeCount += this.postData.isLiked ? 1 : -1
-              this.syncChanges() // 重新赋值 postData，强行刷新颜色和数字
-            })
+            this.BottomActionItem(
+              this.postData.isLiked ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'),
+              this.postData.likeCount > 0 ? this.postData.likeCount.toString() : '点赞',
+              this.postData.isLiked ? '#FF4D4F' : '#666666',
+              () => { this.toggleLike(); }
+            )
 
-            // 收藏按钮
-            Row() {
-              this.BottomAction(
-                this.postData.isCollected ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'),
-                this.postData.isCollected ? '已收藏' : '收藏',
-                this.postData.isCollected ? '#FFAD14' : '#666666'
-              )
-            }
-            .layoutWeight(1)
-            .height('100%')
-            .justifyContent(FlexAlign.Center)
-            .onClick(() => {
-              this.postData.isCollected = !this.postData.isCollected
-              this.syncChanges() // 重新赋值 postData，强行刷新颜色
-              promptAction.showToast({ message: this.postData.isCollected ? '已收藏' : '已取消收藏' })
-            })
+            this.BottomActionItem(
+              this.postData.isCollected ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'),
+              this.postData.isCollected ? '已收藏' : '收藏',
+              this.postData.isCollected ? '#FFAD14' : '#666666',
+              () => { this.toggleCollect(); }
+            )
 
-            // 评论（显示实时数量）
-            Row() {
-              this.BottomAction($r('sys.symbol.message'),
-                (this.postData.comments.length > 0 ? this.postData.comments.length.toString() : '评论'),
-                '#666666'
-              )
-            }
-            .layoutWeight(1)
-            .height('100%')
-            .justifyContent(FlexAlign.Center)
-            .onClick(() => {
-              this.replyingToUser = '';
-              this.replyPlaceholder = '写下你的评论...';
-            })
-          }
-          .width('100%')
-          .height(50)
-        }
-        .backgroundColor('#FFFFFF')
-        .border({ width: { top: 1 }, color: '#F1F3F5' })
-      }
-      .width('100%')
-      .height('100%')
+            this.BottomActionItem(
+              $r('sys.symbol.message'),
+              (this.postData.comments.length > 0 ? this.postData.comments.length.toString() : '评论'),
+              '#666666',
+              () => {
+                this.replyingToUser = '';
+                this.replyPlaceholder = '写下你的评论...';
+              }
+            )
+          }.width('100%').height(50)
+        }.backgroundColor('#FFFFFF').border({ width: { top: 1 }, color: '#F1F3F5' })
+      }.width('100%').height('100%')
 
-      // 大图预览
       if (this.showBigImage) {
         Stack() {
-          Rect().width('100%').height('100%').fill('#FF000000')
-            .onClick(() => this.showBigImage = false)
-
-          Image(this.currentPreviewImg)
-            .width('100%')
-            .objectFit(ImageFit.Contain)
-            .onClick(() => this.showBigImage = false)
-        }
-        .width('100%')
-        .height('100%')
-        .zIndex(100)
+          Rect().width('100%').height('100%').fill('#FF000000').onClick(() => this.showBigImage = false)
+          Image(this.currentPreviewImg).width('100%').objectFit(ImageFit.Contain)
+        }.width('100%').height('100%').zIndex(100)
       }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#FFFFFF')
+    }.width('100%').height('100%').backgroundColor('#FFFFFF')
   }
 
-  @Builder
-  BottomAction(icon: Resource, label: string, color: string) {
-    Column() {
-      SymbolGlyph(icon)
-        .fontSize(20)
-        .fontColor([color])
-
-      // 注意：这里的 label 会随着 BottomAction 调用时传入的 postData 变化而即时更新
-      Text(label)
-        .fontSize(10)
-        .fontColor(color)
-        .margin({ top: 2 })
+  @Builder BottomActionItem(icon: Resource, label: string, color: string, action: () => void) {
+    Row() {
+      SymbolGlyph(icon).fontSize(22).fontColor([color])
+      if (label) {
+        Text(label).fontSize(13).fontColor(color).margin({ left: 5 })
+      }
     }
+    .layoutWeight(1).height('100%').justifyContent(FlexAlign.Center)
+    .onClick(() => action())
   }
 }

@@ -8,14 +8,16 @@ import { BottomNavBar } from '../components/BottomNavBar'
 @Entry
 @Component
 struct Index {
-  @StorageLink('mainIndex') currentIndex: number = 0
+  @StorageLink('mainTabIndex') currentIndex: number = 0
   @StorageLink('welcomeFinished') welcomeFinished: boolean = false
   @State showBottomBar: boolean = false
   @State navOffsetY: number = 40
   @State navOpacity: number = 0
+
   aboutToAppear() {
     this.waitForWelcomeFinish()
   }
+
   private waitForWelcomeFinish() {
     const timer = setInterval(() => {
       if (this.welcomeFinished) {
@@ -24,7 +26,7 @@ struct Index {
           this.showBottomBar = true
           animateTo(
             {
-              duration: 300,
+              duration: 400,
               curve: Curve.EaseOut
             },
             () => {
@@ -32,23 +34,24 @@ struct Index {
               this.navOpacity = 1
             }
           )
-        }, 888)
+        }, 500)
       }
     }, 50)
   }
 
   build() {
     Column() {
-      Tabs({ index: this.currentIndex, barPosition: BarPosition.End }) {
+      Tabs({
+        index: this.currentIndex,
+        barPosition: BarPosition.End
+      }) {
         TabContent() { ExploreView() }
         TabContent() { CircleView() }
+
         TabContent() {
-          Column() {
-            Text('发布功能')
-          }
-          .justifyContent(FlexAlign.Center)
-          .height('100%')
+          Column() { Text('发布模块载入中...') }.justifyContent(FlexAlign.Center).height('100%')
         }
+
         TabContent() { GuideView() }
         TabContent() { MineView() }
       }
@@ -58,12 +61,14 @@ struct Index {
       .onChange((index: number) => {
         this.currentIndex = index
       })
+
       if (this.showBottomBar) {
         BottomNavBar({ currentIndex: $currentIndex })
           .width('100%')
           .height(65)
           .translate({ y: this.navOffsetY })
           .opacity(this.navOpacity)
+          .zIndex(99)
       }
     }
     .width('100%')

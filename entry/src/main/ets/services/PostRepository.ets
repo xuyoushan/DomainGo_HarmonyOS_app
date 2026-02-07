@@ -62,19 +62,21 @@ export class PostRepository {
   async checkUser(username: string, password: string): Promise<UserInfo | null> {
     if (!this.store) return null;
     let predicates = new relationalStore.RdbPredicates('USERS');
+
     predicates.equalTo('USERNAME', username).and().equalTo('PASSWORD', password);
     let resultSet = await this.store.query(predicates);
 
-    if (resultSet && resultSet.goToNextRow()) {
+    if (resultSet && resultSet.goToFirstRow()) {
       const userInfo: UserInfo = {
         id: resultSet.getString(resultSet.getColumnIndex('ID')),
-        username: resultSet.getString(resultSet.getColumnIndex('USERNAME')),
+        username: resultSet.getString(resultSet.getColumnIndex('USERNAME')), // 修复点：这里用小写
         email: resultSet.getString(resultSet.getColumnIndex('EMAIL')),
         avatar: resultSet.getString(resultSet.getColumnIndex('AVATAR'))
       };
       resultSet.close();
       return userInfo;
     }
+    if (resultSet) resultSet.close();
     return null;
   }
 
@@ -96,6 +98,30 @@ export class PostRepository {
     await this.store.insert('POSTS', bucket);
   }
 
+  async deletePost(id: string): Promise<void> {
+    if (!this.store) return;
+    try {
+      let predicates = new relationalStore.RdbPredicates('POSTS');
+      predicates.equalTo('ID', id); // 匹配 ID
+      const rows = await this.store.delete(predicates);
+      console.info(`成功从数据库删除帖子: ${id}, 影响行数: ${rows}`);
+    } catch (err) {
+      console.error(`删除失败: ${JSON.stringify(err)}`);
+    }
+  }
+  async updatePost(post: PostItem): Promise<void> {
+    if (!this.store) return;
+    let bucket: relationalStore.ValuesBucket = {
+      'TEXT_CONTENT': post.text,
+      'IMAGES': JSON.stringify(post.images),
+      'IS_LIKED': post.isLiked ? 1 : 0,
+      'LIKE_COUNT': post.likeCount,
+      'IS_COLLECTED': post.isCollected ? 1 : 0
+    };
+    let predicates = new relationalStore.RdbPredicates('POSTS');
+    predicates.equalTo('ID', post.id);
+    await this.store.update(bucket, predicates);
+  }
   async fetchAllPosts(): Promise<PostItem[]> {
     if (!this.store) return [];
     let predicates = new relationalStore.RdbPredicates('POSTS');
@@ -106,6 +132,7 @@ export class PostRepository {
     while (resultSet.goToNextRow()) {
       posts.push({
         id: resultSet.getString(resultSet.getColumnIndex('ID')),
+        userId: resultSet.getString(resultSet.getColumnIndex('USER_ID')),
         userName: resultSet.getString(resultSet.getColumnIndex('USER_NAME')),
         avatar: $r('app.media.ic_mine_active'),
         text: resultSet.getString(resultSet.getColumnIndex('TEXT_CONTENT')),
@@ -115,7 +142,9 @@ export class PostRepository {
         isLiked: resultSet.getLong(resultSet.getColumnIndex('IS_LIKED')) === 1,
         likeCount: resultSet.getLong(resultSet.getColumnIndex('LIKE_COUNT')),
         isCollected: resultSet.getLong(resultSet.getColumnIndex('IS_COLLECTED')) === 1,
-        comments: []
+        comments: [],
+        likeUserIds: [],
+        collectUserIds: []
       });
     }
     resultSet.close();

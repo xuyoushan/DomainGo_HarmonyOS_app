@@ -1,4 +1,3 @@
-// MineView.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { PostItem } from '../../models/PostItem';
@@ -6,7 +5,6 @@ import { PostItem } from '../../models/PostItem';
 @Component
 export struct MineView {
   scroller: Scroller = new Scroller()
-  // 这里的键名必须与 RegisterView 中的 PersistentStorage 键名完全一致
   @StorageLink('userName') userName: string = '点击注册/登录';
   @StorageLink('isLoggedIn') isLoggedIn: boolean = false;
   @StorageLink('browseHistory') history: PostItem[] = [];
@@ -14,7 +12,6 @@ export struct MineView {
   build() {
     Scroll(this.scroller) {
       Column() {
-        // 1. 头部个人信息区
         Stack({ alignContent: Alignment.Bottom }) {
           Rect()
             .width('100%')
@@ -25,7 +22,6 @@ export struct MineView {
               colors: [['#007DFF', 0.0], ['#005BB7', 1.0]]
             })
 
-          // 【已修复逻辑】：点击头像或名字跳转注册，登录后显示真实名字
           Column() {
             Image($r('app.media.ic_mine_active'))
               .width(85)
@@ -51,7 +47,7 @@ export struct MineView {
                 }
               })
 
-            Text('探索足迹：128公里 | 勋章：5枚')
+            Text('探索足迹：128平方公里 | 勋章：5枚')
               .fontSize(14)
               .fontColor('#E6FFFFFF')
               .margin({ top: 6, bottom: 30 })
@@ -59,7 +55,6 @@ export struct MineView {
         }
         .width('100%')
 
-        // 2. 基础功能列表
         List() {
           ListItem() { this.MenuItem('我的足迹', $r('sys.symbol.map')) }
           ListItem() { this.MenuItem('我的收藏', $r('sys.symbol.star_fill')) }
@@ -97,7 +92,6 @@ export struct MineView {
         .padding({ left: 15, right: 15 })
         .divider({ strokeWidth: 1, color: '#F1F3F5', startMargin: 35 })
         .shadow({ radius: 15, color: '#15000000', offsetY: 8 })
-        // 3. 我的勋章模块
         Column() {
           Row() {
             Text('我的勋章')
@@ -122,7 +116,6 @@ export struct MineView {
           .scrollable(ScrollDirection.Horizontal)
           .scrollBar(BarState.Off)
         }
-        // 4. 足迹地图卡片
         Column() {
           Text('足迹地图')
             .fontSize(18)
@@ -185,7 +178,6 @@ export struct MineView {
           })
         }
 
-        // 5. 底部按钮区
         Button('退出登录')
           .width('92%')
           .height(50)

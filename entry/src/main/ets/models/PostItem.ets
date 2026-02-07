@@ -1,21 +1,21 @@
 export interface UserInfo {
-  id: string;        // 唯一ID (主键)
+  id: string;
   username: string;
   email: string;
   password?: string;
   avatar: string;
 }
 
-// 保持你原有的接口不变
 export interface CommentItem {
   userName: string;
-  avatar: Resource;
+  avatar: ResourceStr;
   content: string;
   timestamp: number;
 }
 
 export interface PostItem {
   id: string;
+  userId: string;
   userName: string;
   avatar: Resource;
   text: string;
@@ -27,4 +27,14 @@ export interface PostItem {
   isCollected: boolean;
   comments: CommentItem[];
   tags?: string[];
+  likeUserIds?: string[];
+  collectUserIds?: string[];
+}
+export interface MessageItem {
+  id: string;
+  type: 'like' | 'collect' | 'follow' | 'comment';
+  fromUserName: string;
+  fromAvatar: ResourceStr;
+  targetContent?: string;
+  timestamp: number;
 }
