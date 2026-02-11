@@ -51,7 +51,6 @@ struct GeoOriginNewView {
     };
   }
 
-  // ⭐ API Key 安全处理：拆分存储，防止明文直接暴露
   private getGlmToken(): string {
     const id = '82e4d46a05264dd19a27e1d91b30dce6';
     const secret = 'UNpMhFWNznhFSPLo';

@@ -28,9 +28,9 @@ interface ScenicUIItem {
 struct ScenicRecommendView {
   @StorageLink('currentCity') cityName: string = '北京市'
   @State currentCategory: string = '全部'
-  @State currentSort: string = '热门'
   @State searchKeyword: string = ''
-  @State categories: string[] = ['全部', '人文', '自然', '一日路线']
+  // 🔹 修改1：分类已精简，删除了“一日路线”
+  @State categories: string[] = ['全部', '人文', '自然']
   @State scenicList: ScenicUIItem[] = []
   @State bgBaseColor: string = '#F6F7F9'
   @State locationTips: string = '正在为您寻觅城中的诗意...'
@@ -38,17 +38,50 @@ struct ScenicRecommendView {
   @State showAI: boolean = false
   @State aiQuery: string = ''
   @State aiLoading: boolean = false
-  @State routeSpots: ScenicUIItem[] = [];
   @State filteredList: ScenicUIItem[] = [];
 
   private static lastYOffset: number = 0
   private scroller: Scroller = new Scroller()
   private aiScroller: Scroller = new Scroller();
   private lastCityLoaded: string = '';
-  private readonly timeMap: string[] = ['上午', '下午', '傍晚', '夜游'];
 
   private aiTimer: number = -1;
   private searchTimer: number = -1;
+
+  // 🔹 修改2：修复后的平台选择逻辑 (使用 ActionSheet 官方规范)
+  private showPlatformSelector(item: ScenicUIItem) {
+    ActionSheet.show({
+      title: `预订 ${item.name}`,
+      message: '请选择您偏好的预订平台',
+      autoCancel: true,
+      alignment: DialogAlignment.Bottom,
+      offset: { dx: 0, dy: -20 },
+      sheets: [
+        {
+          title: '携程旅行',
+          action: () => {
+            promptAction.showToast({ message: '正在跳转携程...' });
+          }
+        },
+        {
+          title: '美团 / 点评',
+          action: () => {
+            promptAction.showToast({ message: '正在跳转美团...' });
+          }
+        },
+        {
+          title: '高德地图',
+          action: () => {
+            promptAction.showToast({ message: '正在跳转高德...' });
+          }
+        }
+      ],
+      confirm: {
+        value: '取消',
+        action: () => {}
+      }
+    })
+  }
 
   private getSortedScenicList(): ScenicUIItem[] {
     return this.scenicList
@@ -120,51 +153,14 @@ struct ScenicRecommendView {
     else if (item.tags.includes('3A景区')) score += 20;
     score += item.rating * 6;
     score += item.tags.length * 2;
-    if (!item.price) score += 6;
+    if (!item.price || item.price === '0') score += 6;
     if (item.name.length <= 4) score -= 5;
     return score;
   }
 
-  private pickRouteSpots(): ScenicUIItem[] {
-    const list = [...this.scenicList];
-    return list
-      .sort((a, b) => this.calcHeat(b) - this.calcHeat(a))
-      .slice(0, 5);
-  }
-
-  private generateLocalRoute() {
-    if (this.scenicList.length === 0) {
-      promptAction.showToast({ message: '请等待美景数据加载...' });
-      return;
-    }
-
-    const pool = [...this.scenicList]
-      .filter(s => s.rating >= 4)
-      .sort((a, b) => this.calcHeat(b) - this.calcHeat(a));
-
-    if (pool.length < 3) return; // 兜底防止点位不足
-
-    const morning = pool.find(s => s.tags.includes('人文')) || pool[0];
-    const afternoon = pool.find(s => s.tags.includes('5A景区')) || pool[1];
-    const evening = pool.find(s => s.tags.includes('自然')) || pool[2];
-    const backup = pool[3];
-
-    this.routeSpots = [morning, afternoon, evening, backup].filter(Boolean);
-  }
-
-
-  private async generateOneDayRoute() {
-    if (this.scenicList.length === 0) return;
-
-    const spots = this.pickRouteSpots();
-    const names = spots.map(s => s.name).join('、');
-    const prompt = `请基于以下景点生成【紧凑且可执行的一日游路线】：\n${names}\n要求：\n- 控制在200字\n- 必须包含 上午 / 下午 / 傍晚\n- 不要写废话\n- 偏实用，不要散文`;
-    this.askAI(prompt);
-  }
-
   private getThemeColor(category: string): string {
     const colorMap: Record<string, string> = {
-      '全部': '#F6F7F9', '人文': '#FCF6ED', '自然': '#F0F9F4','一日路线': '#EEF7FF'
+      '全部': '#F6F7F9', '人文': '#FCF6ED', '自然': '#F0F9F4'
     }
     return colorMap[category] || '#F6F7F9'
   }
@@ -192,8 +188,8 @@ struct ScenicRecommendView {
       const spots = await AmapSpotService.fetchSpots(this.cityName);
       const mapped = spots.map((s: ScenicSpot): ScenicUIItem => {
         const tags = [...s.tags];
-        if (!s.price || s.price === '0') {
-          tags.push('免费');
+        if (!s.price || s.price === '0' || s.price === '[]') {
+          if (!tags.includes('免费')) tags.push('免费');
         }
         return {
           id: s.id,
@@ -201,7 +197,7 @@ struct ScenicRecommendView {
           cover: s.image,
           rating: parseFloat(s.rating || '0'),
           tags,
-          price: (s.price === '0' || !s.price) ? undefined : s.price,
+          price: (s.price === '0' || !s.price || s.price === '[]') ? undefined : s.price,
           address: s.address,
           opacity: 0,
           translateY: 40
@@ -267,32 +263,21 @@ struct ScenicRecommendView {
 
         Scroll(this.scroller) {
           Column({ space: 25 }) {
-            if (this.getSortedScenicList().length === 0 && this.currentCategory !== '一日路线') {
+            if (this.getSortedScenicList().length === 0) {
               Column({ space: 10 }) {
                 Image($r('app.media.ic_ai_chat')).width(100).opacity(0.3)
                 Text('未找到相关胜景').fontColor('#999').fontSize(14)
               }.width('100%').margin({ top: 100 })
             }
 
-            if (['全部', '人文', '自然'].includes(this.currentCategory)) {
-              this.VenueEntryCard()
-            }
+            this.VenueEntryCard()
 
-            if (this.currentCategory === '一日路线') {
-              ForEach(this.routeSpots,
-                (item: ScenicUIItem, index: number) => {
-                  this.ScenicCard(item, index)
-                },
-                (item: ScenicUIItem, index: number) => item.id + index
-              )
-            } else {
-              ForEach(this.getSortedScenicList(),
-                (item: ScenicUIItem, index: number) => {
-                  this.ScenicCard(item, index)
-                },
-                (item: ScenicUIItem) => item.id+ this.currentCategory
-              )
-            }
+            ForEach(this.getSortedScenicList(),
+              (item: ScenicUIItem, index: number) => {
+                this.ScenicCard(item, index)
+              },
+              (item: ScenicUIItem) => item.id + this.currentCategory
+            )
           }
           .padding({ left: 16, right: 16, bottom: 100 })
         }
@@ -328,8 +313,6 @@ struct ScenicRecommendView {
         Text(this.locationTips).fontSize(10).fontColor('#7F8C8D').fontStyle(FontStyle.Italic)
       }.alignItems(HorizontalAlign.Start)
       Blank()
-      Text(this.currentSort).fontSize(14).fontColor('#666').padding({ left: 12, right: 12, top: 6, bottom: 6 })
-        .backgroundColor('rgba(0,0,0,0.05)').borderRadius(12)
     }.width('100%').padding(16)
   }
 
@@ -349,12 +332,6 @@ struct ScenicRecommendView {
           .padding({ left: 10, right: 10 })
           .onClick(() => {
             this.scroller.scrollTo({ xOffset: 0, yOffset: 0 });
-            if (item === '一日路线') {
-              this.generateLocalRoute();
-              this.generateOneDayRoute();
-              this.currentCategory = item;
-              return;
-            }
             animateTo({ duration: 400, curve: Curve.Sharp }, () => {
               this.currentCategory = item
               this.bgBaseColor = this.getThemeColor(item)
@@ -384,17 +361,6 @@ struct ScenicRecommendView {
   @Builder ScenicCard(item: ScenicUIItem, index?: number){
     Column() {
       Stack({ alignContent: Alignment.TopEnd }) {
-        if (this.currentCategory === '一日路线' && index !== undefined) {
-          Text(this.timeMap[index!])
-            .fontSize(11)
-            .fontColor(Color.White)
-            .backgroundColor('#FF7A45')
-            .borderRadius(8)
-            .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-            .position({ x: 12, y: 12 })
-            .zIndex(2)
-        }
-
         Image(item.cover).width('100%').height(260).borderRadius(24).objectFit(ImageFit.Cover)
 
         Row() {
@@ -417,35 +383,39 @@ struct ScenicRecommendView {
       Row() {
         Column({ space: 4 }) {
           Text(item.name).fontSize(20).fontWeight(FontWeight.Bold).fontColor('#2C3E50')
-          if (item.tags.includes('免费')) {
-            Text('FREE')
-              .fontSize(10)
-              .fontColor('#00A86B')
-              .backgroundColor('#E8FFF3')
-              .borderRadius(6)
-              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+          Row({ space: 6 }) {
+            if (item.tags.includes('免费')) {
+              Text('FREE')
+                .fontSize(10)
+                .fontColor('#00A86B')
+                .backgroundColor('#E8FFF3')
+                .borderRadius(6)
+                .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+            }
+            if (item.tags.includes('5A景区')) {
+              Text('5A')
+                .fontSize(10).fontColor('#FF7A45').backgroundColor('#FFF2E8').borderRadius(6)
+                .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+            }
           }
           Text(item.address).fontSize(12).fontColor('#7F8C8D').maxLines(1)
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
 
         Button() {
           Row({ space: 4 }) {
-            Text(item.price ? `¥${item.price}起` : '免费预订')
-              .fontSize(14)
-              .fontWeight(FontWeight.Bold)
+            Text(item.price ? `¥${item.price}` : '免费')
+              .fontSize(16)
+              .fontWeight(FontWeight.Bolder)
               .fontColor(Color.White)
-            SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([Color.White])
+            Text(item.price ? '起' : '预订').fontSize(12).fontColor(Color.White)
           }
         }
-        .height(36)
-        .padding({ left: 12, right: 12 })
-        .linearGradient({ angle: 135, colors: [['#007DFF', 0], ['#005BB7', 1]] })
-        .borderRadius(18)
+        .height(38)
+        .padding({ left: 15, right: 15 })
+        .linearGradient({ angle: 135, colors: [['#FF9A9E', 0], ['#FAD0C4', 1]] })
+        .borderRadius(19)
         .onClick(() => {
-          router.pushUrl({
-            url: 'pages/features/AllFunctions/TravelServiceView',
-            params: { defaultType: '门票预订', destination: item.name }
-          })
+          this.showPlatformSelector(item)
         })
       }.width('100%').padding({ top: 15, bottom: 10 })
     }

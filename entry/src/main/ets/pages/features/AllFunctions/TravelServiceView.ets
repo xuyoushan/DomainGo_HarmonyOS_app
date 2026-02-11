@@ -1,11 +1,7 @@
 import { router, promptAction } from '@kit.ArkUI';
+import { common, Want } from '@kit.AbilityKit';
 import http from '@ohos.net.http';
-import {
-  getCityTraffic,
-  CityTrafficConfig,
-  UniqueTraffic,
-  MetroLine
-} from '../../../models/CityTrafficData';
+import { getCityTraffic, CityTrafficConfig, UniqueTraffic, MetroLine } from '../../../models/CityTrafficData';
 
 interface AmapPoi { name: string; address: string; adname: string; }
 interface AmapResponse { status: string; pois: AmapPoi[]; }
@@ -16,19 +12,16 @@ struct TravelServiceView {
   @StorageLink('currentCity') currentCity: string = '武汉市';
   @State selectedIndex: number = 2;
   @State destination: string = '';
-  @State poiList: string[] = [];
+  @State poiList: string[] = []; // 搜索建议列表
   @State isShowPlatforms: boolean = false;
   @State currentMode: string = '';
   @State activePlatforms: string[] = [];
   @State cityConfig: CityTrafficConfig = getCityTraffic(this.currentCity);
-  @State searchSuggestions: string[] = [];
-  @State isShowingSearch: boolean = false;
   @State isShowTrafficDetail: boolean = false;
   @State selectedTrafficItem: UniqueTraffic | null = null;
 
-  onCityChange() {
-    this.cityConfig = getCityTraffic(this.currentCity);
-  }
+  // private context = getContext(this);
+  private context = getContext(this) as common.UIAbilityContext;
 
   aboutToAppear() {
     let params = router.getParams() as Record<string, string>;
@@ -53,7 +46,6 @@ struct TravelServiceView {
       if (response.responseCode === 200) {
         let res = JSON.parse(response.result as string) as AmapResponse;
         if (res.status === '1' && res.pois) {
-          // 修改点：统一使用内嵌预测
           this.poiList = res.pois.map(p => p.name);
         }
       }
@@ -75,12 +67,38 @@ struct TravelServiceView {
     this.isShowPlatforms = true;
   }
 
-  handleJump(platform: string) {
+  async handleJump(platform: string) {
+    let uri = '';
+    const dest = encodeURIComponent(this.destination);
+    const city = this.currentCity.replace('市', '');
+
+    if (this.currentMode === 'taxi') {
+      if (!this.destination) {
+        promptAction.showToast({ message: '请先搜索目的地' });
+        return;
+      }
+      if (platform === '高德') uri = `amapuri://route/plan/?dname=${dest}&dev=0&t=0`;
+      else if (platform === '百度') uri = `baidumap://map/direction?destination=${dest}&mode=driving&region=${city}`;
+      else uri = `diditaxi://`; // 滴滴等其他平台
+    } else if (this.currentMode === 'bike' || this.currentMode === 'bus') {
+      if (platform === '微信') uri = 'weixin://dl/scan';
+      else if (platform === '支付宝') uri = 'alipays://platformapi/startapp?appId=10000007';
+    }
+
+    if (uri) {
+      try {
+        let want: Want = {
+          action: 'ohos.want.action.viewData',
+          entities: ['entity.system.browsable'],
+          uri: uri
+        };
+        await this.context.startAbility(want);
+        promptAction.showToast({ message: `正在前往 ${platform}...` });
+      } catch (e) {
+        promptAction.showToast({ message: `未检测到 ${platform} 客户端` });
+      }
+    }
     this.isShowPlatforms = false;
-    promptAction.showToast({
-      message: `正在唤起 ${platform}，前往：${this.destination || '目的地'}`,
-      duration: 2000
-    });
   }
 
   build() {
@@ -103,6 +121,7 @@ struct TravelServiceView {
 
       if (this.isShowPlatforms) this.PlatformPicker()
 
+      // 弹窗层逻辑：完全保留
       if (this.isShowTrafficDetail && this.selectedTrafficItem) {
         this.DetailPanel(
           this.selectedTrafficItem.name,
@@ -143,7 +162,7 @@ struct TravelServiceView {
                       .onClick(() => {
                         this.destination = item;
                         this.poiList = [];
-                        focusControl.requestFocus('');
+                        this.openPicker('taxi');
                       })
                   }.border({ width: { bottom: 0.5 }, color: '#f5f5f5' })
                 }, (item: string) => item)
@@ -163,7 +182,7 @@ struct TravelServiceView {
                 ForEach(this.cityConfig.uniqueTraffic, (item: UniqueTraffic) => {
                   ListItem() { this.UniqueTrafficCard(item) }
                 }, (item: UniqueTraffic) => item.name)
-              }.listDirection(Axis.Horizontal).height(130).edgeEffect(EdgeEffect.Spring)
+              }.listDirection(Axis.Horizontal).height(130).edgeEffect(EdgeEffect.Spring).scrollBar(BarState.Off)
             }.alignItems(HorizontalAlign.Start)
           }
 
@@ -187,7 +206,6 @@ struct TravelServiceView {
                   .borderRadius(10)
                   .shadow({ radius: 4, color: '#05000000' })
                   .onClick(() => {
-                    // 让地铁线路发挥作用：拼装并显示详情
                     this.selectedTrafficItem = {
                       name: line.name,
                       type: '城市轨道交通',
@@ -207,9 +225,9 @@ struct TravelServiceView {
           Column({ space: 12 }) {
             this.ModuleTitle('第三方出行服务')
             Row({ space: 12 }) {
-              this.ServiceEntry('一键叫车', $r('sys.symbol.car_fill'), '#FF9500', 'taxi')
-              this.ServiceEntry('扫码单车', $r('sys.symbol.bicycle'), '#4CD964', 'bike')
-              this.ServiceEntry('实时公交', $r('sys.symbol.bus_fill'), '#007DFF', 'bus')
+              this.ServiceEntry('一键打车', $r('sys.symbol.car_fill'), '#FF9500', 'taxi')
+              this.ServiceEntry('共享单车', $r('sys.symbol.bicycle'), '#4CD964', 'bike')
+              this.ServiceEntry('便捷公交', $r('sys.symbol.bus_fill'), '#007DFF', 'bus')
             }.width('100%')
           }.alignItems(HorizontalAlign.Start)
 
@@ -221,58 +239,51 @@ struct TravelServiceView {
 
   @Builder
   UniqueTrafficCard(item: UniqueTraffic) {
-    Column({ space: 6 }) {
-      Row() {
-        Text(item.name)
-          .fontSize(20)
-          .fontWeight(800)
-          .fontColor(Color.White)
-
-        Text(item.type)
-          .fontSize(10)
-          .fontColor(Color.White)
-          .backgroundColor('#30FFFFFF')
-          .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-          .borderRadius(10)
+    Stack({ alignContent: Alignment.BottomEnd }) {
+      SymbolGlyph(this.getIconByTrafficType(item.type))
+        .fontSize(80)
+        .fontColor([Color.White])
+        .opacity(0.12)
+        .offset({ x: 10, y: 20 })
+      Column() {
+        Row() {
+          Column({ space: 4 }) {
+            Text(item.name).fontSize(20).fontWeight(800).fontColor(Color.White)
+            Text(item.type).fontSize(10).fontColor(Color.White).backgroundColor('#30FFFFFF').padding({ left: 8, right: 8, top: 2, bottom: 2 }).borderRadius(6)
+          }.alignItems(HorizontalAlign.Start)
+          Blank()
+          Text('运营中').fontSize(10).fontColor(Color.White).opacity(0.8)
+        }
+        .width('100%')
+        Blank()
+        Row() {
+          Column({ space: 2 }) {
+            Text('票价说明').fontSize(10).fontColor(Color.White).opacity(0.6)
+            Text(item.price).fontSize(14).fontWeight(FontWeight.Bold).fontColor(Color.White)
+          }.alignItems(HorizontalAlign.Start)
+          Blank()
+          Row() {
+            Text('查看详情').fontSize(12).fontColor(Color.White).fontWeight(500)
+            SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([Color.White]).margin({ left: 4 })
+          }.padding({ left: 12, right: 8, top: 6, bottom: 6 }).backgroundColor('#20000000').borderRadius(12)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Bottom)
       }
       .width('100%')
-      .justifyContent(FlexAlign.SpaceBetween)
-      .alignItems(VerticalAlign.Center)
-
-      Blank()
-
-      Row() {
-        Text('查看详情')
-          .fontSize(11)
-          .fontColor(Color.White)
-          .opacity(0.75)
-          .fontWeight(500)
-          .letterSpacing(1)
-
-        SymbolGlyph($r('sys.symbol.chevron_right'))
-          .fontSize(14)
-          .fontColor([Color.White])
-          .opacity(0.75)
-          .margin({ left: 4 })
-      }
-      .width('100%')
-      .justifyContent(FlexAlign.End)
-    }
-    .width(220)
-    .height(125)
-    .padding(18)
-    .borderRadius(24)
-    .linearGradient({
+      .height('100%')
+      .padding(18)
+    }.width(260).height(140).borderRadius(24).linearGradient({
       angle: 135,
       colors: [
-        [item.color, 0.55],
-        [item.color, 1.0]
+        [item.color, 0.0],
+        [this.getDarkerColor(item.color), 1.0]
       ]
     })
     .shadow({
       radius: 20,
-      color: `${item.color}33`,
-      offsetY: 10
+      color: `${item.color}44`,
+      offsetY: 8
     })
     .onClick(() => {
       this.selectedTrafficItem = item;
@@ -280,6 +291,16 @@ struct TravelServiceView {
     })
   }
 
+  getIconByTrafficType(type: string): Resource {
+    if (type.includes('轮渡') || type.includes('水上')) return $r('sys.symbol.ferry_fill');
+    if (type.includes('电车') || type.includes('轨道')) return $r('sys.symbol.tram_fill');
+    if (type.includes('索道') || type.includes('缆车')) return $r('sys.symbol.mountain_2_fill');
+    return $r('sys.symbol.car_fill');
+  }
+
+  getDarkerColor(color: string): string {
+    return color;
+  }
 
   @Builder DetailPanel(title: string, content: string, color: string, onClose: () => void) {
     Stack() {
@@ -290,16 +311,9 @@ struct TravelServiceView {
           Blank()
           SymbolGlyph($r('sys.symbol.xmark')).fontSize(20).fontColor(['#999']).onClick(onClose)
         }.width('100%')
-
-        Scroll() {
-          Text(content).fontSize(15).lineHeight(24).fontColor('#444')
-        }.width('100%').constraintSize({ maxHeight: '40%' }).scrollBar(BarState.Off)
-
-        Button('我知道了')
-          .width('100%').height(50).backgroundColor(color)
-          .onClick(onClose)
-      }
-      .width('85%').padding(24).backgroundColor(Color.White).borderRadius(28)
+        Scroll() { Text(content).fontSize(15).lineHeight(24).fontColor('#444') }.width('100%').constraintSize({ maxHeight: '40%' }).scrollBar(BarState.Off)
+        Button('我知道了').width('100%').height(50).backgroundColor(color).onClick(onClose)
+      }.width('85%').padding(24).backgroundColor(Color.White).borderRadius(28)
     }.zIndex(300)
   }
 
@@ -311,8 +325,7 @@ struct TravelServiceView {
         Text(this.currentCity).fontSize(11).fontColor('#666').margin({ top: 2 })
       }.margin({ left: 16 }).alignItems(HorizontalAlign.Start)
       Blank()
-      SymbolGlyph($r('sys.symbol.location_north_up_right_and_circle_dotted_fill')).fontSize(16).fontColor(['#007DFF'])
-        .padding(8).backgroundColor('#E6F2FF').borderRadius(20)
+      SymbolGlyph($r('sys.symbol.location_north_up_right_and_circle_dotted_fill')).fontSize(16).fontColor(['#007DFF']).padding(8).backgroundColor('#E6F2FF').borderRadius(20)
     }.width('100%').padding(16).backgroundColor(Color.White)
   }
 

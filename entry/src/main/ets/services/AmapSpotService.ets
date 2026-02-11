@@ -50,108 +50,90 @@ export class AmapSpotService {
     '成都'
   ];
 
-  // 🔹 全国顶级地标兜底
-  private static readonly TOP_LANDMARK_REGEX =
-    /故宫|天安门|颐和园|天坛|长城|圆明园|西湖|黄鹤楼|岳阳楼|滕王阁|兵马俑|布达拉宫|九寨沟|张家界|泰山|华山|嵩山/;
+  private static readonly CITY_CORE_LANDMARKS: Map<string, RegExp> = new Map([
+    ['北京', /故宫|天安门|颐和园|天坛|长城|圆明园/],
+    ['天津', /古文化街|意式风情区|五大道/],
+    ['上海', /外滩|东方明珠|豫园|南京路/],
+    ['武汉', /黄鹤楼|东湖|武汉长江大桥|汉口江滩/],
+    ['重庆', /洪崖洞|解放碑|磁器口|朝天门/],
+    ['成都', /宽窄巷子|锦里|都江堰|青城山/]
+  ]);
 
   static async fetchSpots(city: string): Promise<ScenicSpot[]> {
     const key = AmapSpotService.API_KEY;
-    const keywords = encodeURIComponent('景区|风景名胜|世界遗产|地标');
+    // 🔹 优化1：扩充搜索类型，增加 110000(风景名胜) 和 140000(文化场馆)
+    const keywords = encodeURIComponent('景区|地标|公园|博物馆');
+    const types = '110000|140000';
 
-    const url = `https://restapi.amap.com/v3/place/text?key=${key}&keywords=${keywords}&city=${encodeURIComponent(
+    const url = `https://restapi.amap.com/v3/place/text?key=${key}&keywords=${keywords}&types=${types}&city=${encodeURIComponent(
       city
     )}&offset=50&page=1&extensions=all&sortrule=weight`;
-
-    const isVenueExcludedCity =
-      AmapSpotService.VENUE_EXCLUDED_CITIES.includes(city);
 
     const httpRequest = http.createHttp();
 
     try {
       const response = await httpRequest.request(url);
-      if (response.responseCode === 200) {
-        const result = JSON.parse(response.result as string) as AmapResponse;
+      if (response.responseCode !== 200) return [];
 
-        if (result.status === '1' && result.pois) {
-          return result.pois
-            .filter((poi) => {
-              const name = poi.name || '';
-              const rating = parseFloat(poi.biz_ext?.rating || '0');
-              const photos = poi.photos || [];
-              const hasPhoto = photos.length > 0;
+      const result = JSON.parse(response.result as string) as AmapResponse;
+      if (result.status !== '1' || !result.pois) return [];
 
-              if (AmapSpotService.TOP_LANDMARK_REGEX.test(name)) {
-                return hasPhoto;
-              }
+      const coreRegex = AmapSpotService.CITY_CORE_LANDMARKS.get(city);
+      const finalPois: AmapPoi[] = [];
 
-              const junkRegex =
-                /(厕所|停车场|入口|出口|售票处|游客服务中心|服务区|码头|站|路段)/;
-              if (junkRegex.test(name)) return false;
+      result.pois.forEach((poi) => {
+        const name = poi.name || '';
 
-              const subSpotRegex =
-                /-(入口|出口|停车|售票)|·(入口|出口|售票)/;
-              if (subSpotRegex.test(name)) return false;
-
-              const isVenue =
-                /(博物馆|纪念馆|美术馆|科技馆)/.test(name);
-
-              if (isVenueExcludedCity) {
-                if (isVenue) return false;
-              } else {
-                if (isVenue && rating < 4.5) return false;
-              }
-
-              if (
-                /(广场|商业街|步行街|商圈)/.test(name) &&
-                  (isVenueExcludedCity || rating < 4.4)
-              ) {
-                return false;
-              }
-
-              let score = 0;
-
-              if (rating >= 4.6) score += 3;
-              else if (rating >= 4.3) score += 2;
-              else if (rating >= 4.0) score += 1;
-
-              if (photos.length >= 6) score += 3;
-              else if (photos.length >= 3) score += 2;
-              else if (photos.length >= 1) score += 1;
-
-              if (poi.type?.includes('风景名胜')) score += 2;
-              if (/景区|名胜|遗址|公园$/.test(name)) score += 2;
-
-              return isVenueExcludedCity ? score >= 7 : score >= 6;
-            })
-            .map((poi): ScenicSpot => {
-              const costValue = poi.biz_ext?.cost || '0';
-              const photos = poi.photos || [];
-
-              let image = '';
-              if (photos.length > 0) {
-                const index = Math.floor(photos.length / 2);
-                image = photos[index]?.url || photos[0].url;
-              }
-
-              return {
-                id: poi.id,
-                name: poi.name,
-                image,
-                rating: poi.biz_ext?.rating || '4.0',
-                price: costValue,
-                isFree: parseInt(costValue) === 0 || costValue === '',
-                distance: parseInt(poi.distance || '0'),
-                address: poi.address,
-                tags: AmapSpotService.parseProTags(poi),
-                isMuseum: /(博物馆|纪念馆)/.test(poi.name)
-              };
-            });
+        // 🔹 优化2：核心地标具有“最高豁免权”，不参与任何黑名单过滤
+        if (coreRegex && coreRegex.test(name)) {
+          finalPois.push(poi);
+          return;
         }
-      }
+
+        // 🔹 优化3：黑名单逻辑精准化。
+        // 只排除单纯的设施，如果名字里包含“景区”或“公园”则保留（防止误杀“XX公园售票处”这种唯一的入口点）
+        const isInfrastructure = /(停车场|厕所|出入口|服务区|码头|站)$/.test(name);
+        if (isInfrastructure) return;
+
+        const rating = parseFloat(poi.biz_ext?.rating || '0');
+        const photos = poi.photos || [];
+
+        // 🔹 优化4：放宽门槛，只要有图或者评分及格（>3.5）就收录
+        if (rating > 3.5 || photos.length > 0) {
+          finalPois.push(poi);
+        }
+      });
+
+      // 🔹 优化5：去重排序，确保核心地标排在最前面
+      const uniquePois = Array.from(new Set(finalPois));
+
+      return uniquePois.map((poi): ScenicSpot => {
+        const photos = poi.photos || [];
+        let image = '';
+        if (photos.length > 0) {
+          // 这里的策略很好：取中间的图通常比第一张门口图好看
+          const index = Math.floor(photos.length / 2);
+          image = photos[index]?.url || photos[0].url;
+        }
+
+        const costValue = poi.biz_ext?.cost || '0';
+
+        return {
+          id: poi.id,
+          name: poi.name,
+          image: image.replace('http:', 'https:'), // 补全安全协议
+          rating: poi.biz_ext?.rating || '4.0',
+          price: (costValue === '[]' || !costValue) ? '0' : costValue,
+          isFree: parseInt(costValue) === 0 || costValue === '' || costValue === '[]',
+          distance: parseInt(poi.distance || '0'),
+          address: poi.address,
+          tags: AmapSpotService.parseProTags(poi),
+          isMuseum: /(博物馆|美术馆|纪念馆)/.test(poi.name)
+        };
+      });
     } catch (e) {
       console.error('Fetch Scenic Data Failed', e);
     }
-
     return [];
   }
 

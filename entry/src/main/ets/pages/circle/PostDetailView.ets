@@ -250,17 +250,16 @@ struct PostDetailView {
 
         Scroll() {
           Column() {
-            // 作者信息
             Row() {
               Image($r('app.media.start'))
                 .width(45).height(45).borderRadius(22.5)
                 .onClick(() => {
                   if (!this.checkAuth()) return;
-                  if (this.postData.userId === this.currentUserId) {
-                    router.pushUrl({ url: 'pages/Index', params: { tabIndex: 4 } });
-                  } else {
-                    router.pushUrl({ url: 'pages/mine/UserHomeView', params: { userId: this.postData.userId } });
-                  }
+                  if (this.postData.userId === this.currentUserId) {return;}
+                  router.pushUrl({
+                    url: 'pages/mine/UserHomeView',
+                    params: { userId: this.postData.userId }
+                  });
                 })
               Column() {
                 Text(this.postData.userName).fontSize(16).fontWeight(FontWeight.Medium)

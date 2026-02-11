@@ -47,6 +47,47 @@ export class PostRepository {
       )`);
   }
 
+  async isEmailRegistered(email: string): Promise<boolean> {
+    if (!this.store) return false;
+    let predicates = new relationalStore.RdbPredicates('USERS');
+    predicates.equalTo('EMAIL', email);
+    let resultSet = await this.store.query(predicates);
+    const exists = resultSet.rowCount > 0;
+    resultSet.close();
+    return exists;
+  }
+
+  async updateUserInfo(userId: string, username: string, avatar: string, password?: string): Promise<void> {
+    if (!this.store) return;
+    const bucket: relationalStore.ValuesBucket = { 'USERNAME': username, 'AVATAR': avatar };
+    if (password && password.trim().length > 0) {bucket['PASSWORD'] = password;}
+
+    let predicates = new relationalStore.RdbPredicates('USERS');
+    predicates.equalTo('ID', userId);
+    await this.store.update(bucket, predicates);
+
+    let postPredicates = new relationalStore.RdbPredicates('POSTS');
+    postPredicates.equalTo('USER_ID', userId);
+    await this.store.update({ 'USER_NAME': username }, postPredicates);
+  }
+
+  async deleteUserAccount(userId: string): Promise<void> {
+    if (!this.store) return;
+    try {
+      let userPredicates = new relationalStore.RdbPredicates('USERS');
+      userPredicates.equalTo('ID', userId);
+      await this.store.delete(userPredicates);
+
+      let postPredicates = new relationalStore.RdbPredicates('POSTS');
+      postPredicates.equalTo('USER_ID', userId);
+      await this.store.delete(postPredicates);
+
+      console.info(`账号 ${userId} 已注销，相关数据已清理`);
+    } catch (err) {
+      console.error(`注销失败: ${JSON.stringify(err)}`);
+    }
+  }
+
   async registerUser(user: UserInfo) {
     if (!this.store) return;
     const bucket: relationalStore.ValuesBucket = {
@@ -59,29 +100,26 @@ export class PostRepository {
     return await this.store.insert('USERS', bucket);
   }
 
-  async checkUser(username: string, password: string): Promise<UserInfo | null> {
+  async checkUser(email: string, password: string): Promise<UserInfo | null> {
     if (!this.store) return null;
     let predicates = new relationalStore.RdbPredicates('USERS');
-
-    predicates.equalTo('USERNAME', username).and().equalTo('PASSWORD', password);
+    predicates.equalTo('EMAIL', email).and().equalTo('PASSWORD', password);
     let resultSet = await this.store.query(predicates);
-
     if (resultSet && resultSet.goToFirstRow()) {
       const userInfo: UserInfo = {
         id: resultSet.getString(resultSet.getColumnIndex('ID')),
-        username: resultSet.getString(resultSet.getColumnIndex('USERNAME')), // 修复点：这里用小写
+        username: resultSet.getString(resultSet.getColumnIndex('USERNAME')),
         email: resultSet.getString(resultSet.getColumnIndex('EMAIL')),
         avatar: resultSet.getString(resultSet.getColumnIndex('AVATAR'))
       };
       resultSet.close();
       return userInfo;
     }
-    if (resultSet) resultSet.close();
     return null;
   }
 
   async insertPost(post: PostItem, userId: string) {
-    if (!this.store) throw new Error('DB_NOT_INIT'); // 抛出异常方便调试
+    if (!this.store) throw new Error('DB_NOT_INIT');
     const bucket: relationalStore.ValuesBucket = {
       'ID': post.id,
       'USER_ID': userId,
@@ -102,13 +140,14 @@ export class PostRepository {
     if (!this.store) return;
     try {
       let predicates = new relationalStore.RdbPredicates('POSTS');
-      predicates.equalTo('ID', id); // 匹配 ID
+      predicates.equalTo('ID', id);
       const rows = await this.store.delete(predicates);
       console.info(`成功从数据库删除帖子: ${id}, 影响行数: ${rows}`);
     } catch (err) {
       console.error(`删除失败: ${JSON.stringify(err)}`);
     }
   }
+
   async updatePost(post: PostItem): Promise<void> {
     if (!this.store) return;
     let bucket: relationalStore.ValuesBucket = {
@@ -122,6 +161,7 @@ export class PostRepository {
     predicates.equalTo('ID', post.id);
     await this.store.update(bucket, predicates);
   }
+
   async fetchAllPosts(): Promise<PostItem[]> {
     if (!this.store) return [];
     let predicates = new relationalStore.RdbPredicates('POSTS');
@@ -152,9 +192,7 @@ export class PostRepository {
   }
 
   async updatePostStatus(postId: string, isLiked: boolean, isCollected: boolean, likeCount: number): Promise<void> {
-    if (!this.store) {
-      return;
-    }
+    if (!this.store) return;
     let valueBucket: relationalStore.ValuesBucket = {
       'IS_LIKED': isLiked ? 1 : 0,
       'IS_COLLECTED': isCollected ? 1 : 0,

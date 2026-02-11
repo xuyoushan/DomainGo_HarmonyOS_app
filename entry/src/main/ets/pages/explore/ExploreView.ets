@@ -1,16 +1,15 @@
 import { LocationManager } from '../../services/LocationManager';
 import { common } from '@kit.AbilityKit';
 import http from '@ohos.net.http';
+import { WeatherWidget } from '../../components/Explore/Weather';
 import { PROVINCE_CITY_DATA } from '../../models/CityData';
 import { CITY_BANNER_CONFIG, CityBanner } from '../../models/CityBannerData';
-import { promptAction, router, display, window } from '@kit.ArkUI';
+import { promptAction, router, display } from '@kit.ArkUI';
 import { CITY_ROUTES, TravelRoute } from '../../models/RouteData';
 import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA, CityExploreConfig } from '../../models/CityKey';
-import { PreferenceManager } from '../../services/PreferenceManager';
+import { WelcomeGuide } from '../../components/Explore/WelcomeGuide';
+import { AIChatSheet } from '../../components/Explore/ExploreAIModel'
 
-interface WeatherNow { temperature: string; text: string; }
-interface WeatherResult { now: WeatherNow; }
-interface WeatherResponse { results: WeatherResult[]; }
 interface HotTopic { title: string; color: string; count: string; }
 interface TopicTemplate { suffix: string; color: string; }
 interface MyNewsResponse { code: number; city: string; news: string[]; }
@@ -19,91 +18,25 @@ interface MyNewsResponse { code: number; city: string; news: string[]; }
 export struct ExploreView {
   @StorageLink('currentCity') currentCity: string = '武汉市';
   @StorageLink('currentWeather') weatherInfo: string = '...';
-  @State weatherText: string = '阴';
-  @State searchText: string = '';
+  @StorageLink('isLoggedIn') isLoggedIn: boolean = false;
+  @StorageLink('show_guide_manual') show_guide_manual: boolean = false;
+  @StorageLink('welcomeFinished') welcomeFinished: boolean = false;
+  @StorageLink('hasCompletedGuide') hasCompletedGuide: boolean = false;
   @State scaleValue: number = 1.0;
   @State bannerHeight: number = 200;
   @State hotTopics: HotTopic[] = [];
   @State newsList: string[] = ["正在连接文旅大数据中心..."];
   @State isCitySwitching: boolean = false
   @State currentStage: 'welcome' | 'stepGuide' | 'full' = 'welcome'
-  @State guideStepIndex: number = 0
+  @State isReady: boolean = true;
+  @State aiScale: number = 1.0;
+  @State aiOpacity: number = 0.9;
   @State displayedText: string = ''
   @State isTyping: boolean = false
-  @State guideOpacity: number = 1.0;
-  @StorageLink('hasCompletedGuide') hasCompletedGuide: boolean = false;
-  @State isReady: boolean = true;
-  @StorageLink('show_guide_manual') show_guide_manual: boolean = false;
-  @State isDataLoaded: boolean = false;
-  @State isShowGuideModal: boolean = false;
-  @StorageLink('welcomeFinished') welcomeFinished: boolean = false;
-
-  private timerId: number = -1
+  @State guideStepIndex: number = 0
+  @State isChatOpen: boolean = false;
 
   private context = getContext(this) as common.UIAbilityContext;
-
-  private getGuideSteps(): string[] {
-    return [
-      `欢迎来到寻域之旅。\n在这座城市，每条街道、每幢建筑、每个人的笑声里，都藏着独特的故事。`,
-      `这里有被时间遗忘的老巷，有被记忆铭刻的历史建筑。\n走进去，你会发现那些平凡角落里非凡的秘密。`,
-      `在这里，你可以慢慢品味城市的味道。\n无论是街头小吃的香气，\n还是老茶馆里的谈笑声，\n都在讲述属于城市的温度。`,
-      `每一座城市都有自己的节奏和脉络。\n历史、文化、生活在这里交织，每一步行走，都是一次新的发现。`,
-      `准备好了吗？\n让我们从这里开始，慢慢触摸城市的故事。\n一场探索之旅即将在你的指尖展开。`,
-      `点击“开始探索”\n去寻域\n去了解每个功能、每条路线、每个故事的精华。`];
-  }
-
-  private playStepText() {
-    if (this.timerId !== -1) {
-      clearInterval(this.timerId);
-      this.timerId = -1;
-    }
-
-    const steps = this.getGuideSteps()
-
-    this.displayedText = '';
-    this.isTyping = true;
-    const fullText = steps[this.guideStepIndex];
-    let i = 0;
-
-    this.timerId = setInterval(() => {
-      if (i < fullText.length) {
-        this.displayedText += fullText[i];
-        i++;
-      } else {
-        clearInterval(this.timerId);
-        this.timerId = -1;
-        this.isTyping = false;
-      }
-    }, 50);
-  }
-
-  private nextStep(total: number) {
-    if (this.isTyping) return;
-    if (this.guideStepIndex < total - 1) {
-      this.guideStepIndex++;
-      this.playStepText();
-    }
-  }
-
-  private async enterMainPage() {
-    await PreferenceManager.put(this.context, 'hasCompletedGuide', true);
-    await PreferenceManager.put(this.context, 'show_guide_manual', false);
-    AppStorage.setOrCreate('show_guide_manual', false);
-    AppStorage.setOrCreate('welcomeFinished', true);
-
-    const win = await window.getLastWindow(this.context);
-    animateTo({
-      duration: 888,
-      curve: Curve.EaseInOut,
-      onFinish: () => {
-        this.currentStage = 'full';
-      }
-    }, () => {
-      this.isReady = false;
-      win.setWindowSystemBarEnable(['status', 'navigation']);
-      win.setWindowLayoutFullScreen(false);
-    })
-  }
 
   getCityConfig(): CityExploreConfig {
     return CITY_EXPLORE_MAP[this.currentCity] || DEFAULT_EXPLORE_DATA;
@@ -123,28 +56,14 @@ export struct ExploreView {
     } catch (e) {
       this.bannerHeight = 200;
     }
-    window.getLastWindow(this.context, (err: BusinessError, data: window.Window) => {
-      const errCode: number = err.code;
-      if (errCode) {
-        console.error('Failed to get window: ' + JSON.stringify(err));
-        return;
-      }
-      let win: window.Window = data;
-      win.setWindowLayoutFullScreen(true);
-      win.setWindowSystemBarEnable([]);
-    });
   }
-
   onPageShow() {
-    this.initLocation()
-    this.fetchRealNews()
-  }
-
-  aboutToDisappear() {
-    if (this.timerId !== -1) {
-      clearInterval(this.timerId)
-      this.timerId = -1
-    }
+    this.initLocation();
+    this.fetchRealNews();
+    animateTo({ duration: 1500, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate }, () => {
+      this.aiScale = 1.03;
+      this.aiOpacity = 0.7;
+    })
   }
 
   async initLocation() {
@@ -155,11 +74,9 @@ export struct ExploreView {
         if (city && city !== '定位失败') {
           this.updateCityState(city);
         }
-      } else {
-        this.fetchRealWeather(this.currentCity)
       }
     } catch (err) {
-      this.fetchRealWeather(this.currentCity)
+      console.error("定位服务异常");
     }
   }
 
@@ -170,17 +87,9 @@ export struct ExploreView {
     this.currentCity = city
     AppStorage.setOrCreate('currentCity', city)
 
-    await new Promise<void>((resolve) => {
-      setTimeout(() => {
-        resolve()
-      }, 500)
-    })
+    await new Promise<void>((resolve) => {setTimeout(() => {resolve()}, 500)})
 
-    await Promise.all([
-      this.fetchRealWeather(city),
-      this.fetchRealNews(),
-      this.fetchHotTopics()
-    ])
+    await Promise.all([this.fetchRealNews(), this.fetchHotTopics()])
 
     this.isCitySwitching = false
     console.info(`[Explore] 城市切换完成: ${city}`)
@@ -204,26 +113,7 @@ export struct ExploreView {
     })
   }
 
-  async fetchRealWeather(city: string) {
-    let httpRequest = http.createHttp();
-    try {
-      let queryCity = city.replace('市', '');
-      let url = `https://api.seniverse.com/v3/weather/now.json?key=S7zKUHHMAcavQT0_R&location=${encodeURIComponent(queryCity)}&language=zh-Hans&unit=c`;
-      let response = await httpRequest.request(url, { connectTimeout: 5000 });
-      if (response.responseCode === 200) {
-        let result = JSON.parse(response.result as string) as WeatherResponse;
-        if (result.results?.length > 0) {
-          let nowData = result.results[0].now;
-          this.weatherInfo = `${nowData.temperature}°C`;
-          this.weatherText = nowData.text;
-        }
-      }
-    } catch (err) {
-      this.weatherInfo = '网络异常';
-    } finally {
-      httpRequest.destroy();
-    }
-  }
+
 
   async fetchRealNews() {
     const USE_REAL_CRAWLER = true;
@@ -232,11 +122,7 @@ export struct ExploreView {
       return;
     }
     let isFinished = false;
-    setTimeout(() => {
-      if (!isFinished) {
-        isFinished = true;
-      }
-    }, 5000);
+    setTimeout(() => { if (!isFinished) { isFinished = true; } }, 5000);
 
     let httpRequest = http.createHttp();
     const url = `http://192.168.191.83:5000/get_news/${encodeURIComponent(this.currentCity)}`;
@@ -285,213 +171,115 @@ export struct ExploreView {
     });
   }
 
-  getWeatherIcon(text: string): Resource {
-    if (text.includes('晴')) return $r('sys.symbol.sun_max_fill');
-    if (text.includes('雨')) return $r('sys.symbol.light_rain');
-    if (text.includes('阴') || text.includes('多云')) return $r('sys.symbol.cloud_fill');
-    return $r('sys.symbol.cloud_sun_fill');
-  }
-
   build() {
     Stack() {
       if (!this.isReady || this.currentStage === 'full') {
         Column() {
           this.MainExploreContent()
         }
-        .width('100%').height('100%')
+        .width('100%')
+        .height('100%')
       }
 
       if (this.isReady && this.currentStage !== 'full') {
-        Stack() {
-          this.BackgroundAtmosphere()
-          Column() {
-            if (this.currentStage === 'welcome') {
-              this.WelcomeGuideUI()
-            } else if (this.currentStage === 'stepGuide') {
-              this.StepGuideUI()
-            }
-          }
-          .width('100%').height('100%')
-        }
-        .width('100%')
-        .height('100%')
-        .backgroundColor(Color.Black)
-        .zIndex(999)
-        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-        .transition(TransitionEffect.OPACITY.combine(TransitionEffect.scale({ x: 1.1, y: 1.1 })))
-      }
-    }
-    .width('100%')
-    .height('100%')
-  }
-
-  // 引导逻辑
-  @Builder GuideContent() {
-    Stack() {
-      Rect().width('100%').height('100%').fill(Color.Black)
-      if (this.currentStage === 'welcome' || this.currentStage === 'stepGuide') {
-        this.BackgroundAtmosphere()
-      }
-      Column() {
-        if (this.currentStage === 'welcome') {
-          this.WelcomeGuideUI()
-        } else if (this.currentStage === 'stepGuide') {
-          this.StepGuideUI()
-        }
-      }
-      .width('100%')
-      .height('100%')
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor(Color.Black)
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-  }
-
-  @Builder WelcomeGuideUI() {
-    Stack() {
-      Image($r('app.media.start'))
-        .width('100%')
-        .height('100%')
-        .objectFit(ImageFit.Cover)
-      Column()
-        .width('100%')
-        .height('100%')
-        .linearGradient({
-          direction: GradientDirection.Bottom,
-          colors: [['#20000000', 0.0], ['#80000000', 1.0]]
+        WelcomeGuide({
+          currentStage: $currentStage,
+          displayedText: $displayedText,
+          isTyping: $isTyping,
+          guideStepIndex: $guideStepIndex,
+          scaleValue: $scaleValue,
+          isReady: $isReady
         })
-      Column() {
-        Text('寻 · 域')
-          .fontSize(48)
-          .fontWeight(FontWeight.Lighter)
-          .fontColor(Color.White)
-          .letterSpacing(15)
-          .margin({ bottom: 10 })
-
-        Text('—— 触摸每一座城市的温度 ——')
-          .fontSize(14)
-          .fontColor('#CCFFFFFF')
-          .letterSpacing(2)
-          .margin({ bottom: 80 })
-
-        Button() {
-          Row({ space: 8 }) {
-            Text('开启旅程').fontColor(Color.White).fontSize(16).fontWeight(FontWeight.Medium)
-            SymbolGlyph($r('sys.symbol.arrow_right')).fontSize(18).fontColor([Color.White])
-          }
-        }
-        .width(200)
-        .height(56)
-        .backgroundColor('rgba(255,255,255,0.15)')
-        .backgroundBlurStyle(BlurStyle.Thin)
-        .borderRadius(28)
-        .border({ width: 1, color: 'rgba(255,255,255,0.3)' })
-        .onClick(async () => {
-          const isFinished = await PreferenceManager.get(this.context, 'hasCompletedGuide', false) as boolean;
-          const isManualOpen = await PreferenceManager.get(this.context, 'show_guide_manual', false) as boolean;
-          console.info(`[ButtonCheck] 磁盘状态 - 已完成: ${isFinished}, 手动开关: ${isManualOpen}`);
-          if (isFinished && !isManualOpen) {
-            this.enterMainPage();
-          } else {
-            animateTo({ duration: 300 }, () => {
-              this.currentStage = 'stepGuide';
-            })
-            this.guideStepIndex = 0;
-            this.playStepText();
-          }
-        })
+          .zIndex(999)
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+          .transition(TransitionEffect.OPACITY.animation({ duration: 888, curve: Curve.EaseInOut }))
       }
-      .width('100%')
-      .padding({ bottom: 100 })
-      .alignItems(HorizontalAlign.Center)
-      .justifyContent(FlexAlign.End)
     }
     .width('100%')
     .height('100%')
+    .bindSheet($$this.isChatOpen, this.AIChatPanelBuilder(), {
+      height: SheetSize.LARGE,
+      title: { title: `寻域 AI · ${this.currentCity}` },
+      backgroundColor: '#F5F7FA'
+    })
   }
 
-  @Builder StepGuideUI() {
-    Stack() {
-      Column() {
-        Text(this.displayedText).fontSize(20)
-          .fontWeight(FontWeight.Lighter).fontColor(Color.White)
-          .lineHeight(32).textAlign(TextAlign.Center)
-          .margin({ left: 24, right: 24, bottom: 30 }).textShadow({ radius: 4, color: '#80000000', offsetY: 2 })
-        if (!this.isTyping) {
-          Button({ type: ButtonType.Capsule, stateEffect: true }) {
-            Text(this.guideStepIndex < this.getGuideSteps().length - 1 ? '下一步' : '开始探索')
-              .fontSize(16)
-              .fontColor(Color.White)
-              .fontWeight(FontWeight.Medium)
-              .letterSpacing(2)
-          }
-          .width(200).height(56)
-          .linearGradient({
-            direction: GradientDirection.Right,
-            colors: [['#FF7F50', 0.0], ['#FF6B6B', 1.0]]
-          })
-          .border({ width: 1, color: 'rgba(255, 255, 255, 0.5)' })
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Color.White).fontSize(16)
-          .backgroundBlurStyle(BlurStyle.Thin)
-          .border({ width: 1, color: 'rgba(255, 255, 255, 0.5)' })
-          .borderRadius(25)
-          .shadow({
-            radius: 15,
-            color: 'rgba(255, 107, 107, 0.4)', // 按钮同色系的呼吸投影
-            offsetY: 8
-          })
-          .scale({ x: this.scaleValue, y: this.scaleValue })
-          .onTouch((event: TouchEvent) => {
-            if (event.type === TouchType.Down) {
-              animateTo({ duration: 100 }, () => { this.scaleValue = 0.95 })
-            } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-              animateTo({ duration: 100 }, () => { this.scaleValue = 1.0 })
-            }
-          })
-          .onClick(() => {
-            if (this.guideStepIndex < this.getGuideSteps().length - 1) {
-              this.nextStep(this.getGuideSteps().length);
-            } else {
-              this.enterMainPage();
-            }
-          })
-        }
-      }
-      .alignItems(HorizontalAlign.Center)
-      .justifyContent(FlexAlign.Center)
-      .width('100%')
-      .height('100%')
-      .onClick(() => this.nextStep(this.getGuideSteps().length))
-    }
-    .width('100%')
-    .height('100%')
+  @Builder AIChatPanelBuilder() {
+    AIChatSheet({
+      currentCity: this.currentCity,
+      isChatOpen: $isChatOpen
+    })
   }
 
   @Builder MainExploreContent() {
     Column() {
-      // 顶部状态栏
       Row() {
         Row() {
-          SymbolGlyph($r('sys.symbol.location_north_up_right_and_circle_dotted_fill')).fontSize(18).fontColor(['#007DFF'])
-          Text(this.currentCity).fontSize(14).fontWeight(FontWeight.Bold).margin({ left: 4 }).maxLines(2).minFontSize(9).maxFontSize(14).textOverflow({ overflow: TextOverflow.Ellipsis }).constraintSize({ maxWidth: 80 }).textAlign(TextAlign.Start)
-          SymbolGlyph($r('sys.symbol.chevron_down')).fontSize(12).fontColor(['#999'])
-        }.onClick(() => this.showCityPicker()).width('28%')
-
-        Search({ value: this.searchText, placeholder: '搜索目的地' })
-          .layoutWeight(1).height(36).backgroundColor('#F1F3F5')
-          .onChange((v) => this.searchText = v)
+          SymbolGlyph($r('sys.symbol.location_north_up_right_and_circle_dotted_fill'))
+            .fontSize(20)
+            .fontColor(['#6C5CE7'])
+          Text(this.currentCity.replace('自治州', ''))
+            .fontSize(15)
+            .fontWeight(FontWeight.Bold)
+            .margin({ left: 4 })
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .textAlign(TextAlign.Start)
+            .minFontSize(11)
+            .maxFontSize(15)
+        }
+        .width('25%')
+        .onClick(() => this.showCityPicker())
 
         Row() {
-          SymbolGlyph(this.getWeatherIcon(this.weatherText)).fontSize(18).fontColor(['#FFAD0A'])
-          Text(this.weatherInfo).fontSize(11).margin({ left: 3 })
-        }.width('18%').justifyContent(FlexAlign.End)
-      }.width('100%').padding(12).backgroundColor('#FFFFFF')
+          Row() {
+            SymbolGlyph($r('sys.symbol.AI'))
+              .fontSize(20)
+              .fontColor([Color.White])
+              .symbolEffect(new SymbolEffect(), true)
+              .scale({ x: this.aiScale, y: this.aiScale })
+
+            Text('你好，寻域探险家！')
+              .fontSize(12)
+              .fontColor('rgba(255,255,255,0.9)')
+              .fontWeight(FontWeight.Medium)
+              .margin({ left: 6 })
+              .maxLines(1)
+              .opacity(this.aiOpacity)
+              .textOverflow({ overflow: TextOverflow.None })
+          }
+          .height(38)
+          .width(160)
+          .borderRadius(20)
+          .padding({ left: 14, right: 14 })
+          .linearGradient({
+            direction: GradientDirection.Right,
+            colors: [['#6C5CE7', 0.0], ['#00CEC9', 0.5], ['#0984E3', 1.0]]
+          })
+          .shadow({ radius: 12, color: 'rgba(108, 92, 231, 0.3)', offsetY: 4 })
+          .scale({ x: this.aiScale, y: this.aiScale })
+          .onClick(async () => {
+            if (this.currentCity === '定位中...' || this.currentCity === '定位失败' || this.isCitySwitching) {
+              promptAction.showToast({ message: '正在感应城市气息，请稍后...' });
+              return;
+            }
+            this.isChatOpen = true;
+          })
+        }
+        .layoutWeight(1)
+        .justifyContent(FlexAlign.End)
+        .padding({ right: 10 })
+
+        WeatherWidget()
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+      .backgroundColor('rgba(255,255,255,0.95)')
+      .backgroundBlurStyle(BlurStyle.Thin)
+      .shadow({ radius: 8, color: 'rgba(0,0,0,0.05)', offsetY: 2 })
 
       Scroll() {
         Column({ space: 20 }) {
-          // 轮播图 Banner
           Swiper() {
             if (CITY_BANNER_CONFIG[this.currentCity]) {
               ForEach(CITY_BANNER_CONFIG[this.currentCity], (item: CityBanner) => {
@@ -502,7 +290,6 @@ export struct ExploreView {
             }
           }.width('100%').height(this.bannerHeight).autoPlay(true).borderRadius(12)
 
-          // 节奏断点 / 弱提示文案
           Text('城市不止一种读法。').fontSize(12).fontColor('#999').margin({ top: 10, bottom: 8 })
 
           // 寻域快报
@@ -522,7 +309,6 @@ export struct ExploreView {
 
             // 右侧内容区域
             if (this.isCitySwitching) {
-              // —— 忙碌态 —— //
               Text(`正在同步 ${this.currentCity.replace('市', '')} 城市快报…`)
                 .fontSize(12)
                 .fontColor('#999')
@@ -559,7 +345,6 @@ export struct ExploreView {
           .backgroundColor('#FFF5F5')
           .borderRadius(8)
 
-          // 功能金刚区
           Column() {
             this.HeroArchiveCard()
             Row({ space: 12 }) {
@@ -592,7 +377,6 @@ export struct ExploreView {
             .shadow({ radius: 20, color: 'rgba(0,0,0,0.05)', offsetY: 8 }) // 柔和浮空投影
           }
           .padding({ left: 16, right: 16 })
-          // 节奏断点 / 弱提示文案
           Text('慢慢探索，每一次出行都有惊喜。').fontSize(12).fontColor('#999').margin({ top: 10, bottom: 8 })
 
           // 正在讨论
@@ -619,8 +403,6 @@ export struct ExploreView {
               }.width('100%').padding(30)
             }
           }
-
-          // 页面底部弱结束语
           Column() {
             Text('每座城市，都值得被慢慢认识。').fontSize(12).fontColor('#AAA').margin({ top: 15 })
           }.width('100%').height(80)
@@ -630,24 +412,6 @@ export struct ExploreView {
     }.width('100%').height('100%').backgroundColor('#F8F8F8')
   }
 
-  @Builder BackgroundAtmosphere() {
-    Stack() {
-      Image($r('app.media.start'))
-        .width('100%')
-        .height('100%')
-        .objectFit(ImageFit.Cover) // ✅ 关键：确保横图在纵屏下自动中心裁剪
-        .blur(25)                 // ✅ 稍微加大模糊，利用云层的金色形成光晕
-        .opacity(0.6)              // 保持半透明
-        .scale({ x: 1.2, y: 1.2 }) // ✅ 稍微加大初始比例，给 Ken Burns 效果留足裁剪空间
-        .animation({ duration: 12000, iterations: -1, curve: Curve.Linear })
-      Rect()
-        .width('100%')
-        .height('100%')
-        .fill(Color.Black)
-        .opacity(0.15)
-    }.width('100%').height('100%')
-    .hitTestBehavior(HitTestMode.None)
-  }
 
   @Builder BannerImageItem(title: string, img: Resource) {
     Stack({ alignContent: Alignment.BottomStart }) {
@@ -778,11 +542,9 @@ export struct ExploreView {
         '场馆预约': 'pages/features/explore/VenueBookingView',
         '特产风味': 'pages/features/explore/SpecialtyView',
         '景点推荐': 'pages/features/explore/ScenicRecommendView',
+        '文化资源': 'pages/features/explore/CultureView'
       };
-      if (pageMap[name]) {router.pushUrl({ url: pageMap[name], params: { cityName: this.currentCity } });
-      } else {
-        promptAction.showToast({ message: `${name} 功能开发中...` });
-      }
+      router.pushUrl({ url: pageMap[name], params: { cityName: this.currentCity } });
     })
   }
 

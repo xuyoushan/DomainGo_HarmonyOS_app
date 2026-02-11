@@ -2,7 +2,7 @@
   "src": [
     "pages/Index",
     "pages/guide/GuideView",
-    "pages/mine/TraceDetailView",
+    "pages/features/mine/TraceDetailView",
     "pages/circle/MessageCenterView",
     "pages/circle/PostDetailView",
     "pages/mine/UserHomeView",
@@ -23,6 +23,7 @@
     "pages/features/explore/CultureView",
     "pages/features/explore/SpecialtyView",
     "pages/features/AllFunctions/CityToolkitView",
-    "pages/features/explore/ScenicRecommendView"
+    "pages/features/explore/ScenicRecommendView",
+    "pages/features/mine/BadgeView"
   ]
 }
