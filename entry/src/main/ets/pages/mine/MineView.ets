@@ -1,6 +1,8 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { PostItem } from '../../models/PostItem';
+import { PreferenceManager } from '../../services/PreferenceManager';
+import { common } from '@kit.AbilityKit';
 
 @Component
 export struct MineView {
@@ -11,85 +13,137 @@ export struct MineView {
   @StorageLink('userAvatar') userAvatar: string = '';
   @StorageLink('currentUserId') userId: string = '';
 
+  // 统一的登录拦截方法
+  checkLoginAndExecute(action: () => void) {
+    if (!this.isLoggedIn) {
+      promptAction.showToast({ message: '请先登录探索更多精彩' });
+      router.pushUrl({ url: 'pages/mine/RegisterView' });
+      return;
+    }
+    action();
+  }
+
   build() {
-    Scroll(this.scroller) {
-      Column() {
-        // --- 头部：流光背景与用户信息 ---
-        Stack({ alignContent: Alignment.Top }) {
-          // 背景装饰
+    Column() {
+      if (!this.isLoggedIn) {
+        // --- 未登录状态 ---
+        Stack({ alignContent: Alignment.Center }) {
           Circle()
             .width(400)
             .height(400)
             .fill('#1A007DFF')
             .offset({ x: -150, y: -200 })
-
           Column() {
-            // 用户主卡片
             this.UserHeaderCard()
-
-            // 数据概览（原本的足迹/勋章数据）
-            this.DataOverviewRow()
+            Text('登录后即可查看勋章、动态及足迹')
+              .fontSize(14)
+              .fontColor('#999999')
+              .margin({ top: 20 })
           }
-          .padding({ top: 60, left: 16, right: 16 })
+          .padding(16)
+          .width('100%')
         }
         .width('100%')
-        .height(300)
+        .height('100%')
+        .backgroundColor('#F7F8FA')
+      } else {
+        Scroll(this.scroller) {
+          Column() {
+            Stack({ alignContent: Alignment.Top }) {
+              Circle()
+                .width(400)
+                .height(400)
+                .fill('#1A007DFF')
+                .offset({ x: -150, y: -200 })
 
-        // --- 功能操作区：卡片式列表 ---
-        Column() {
-          this.QuickActions()
+              Column() {
+                this.UserHeaderCard()
+                this.DataOverviewRow()
+              }
+              .padding({ top: 60, left: 16, right: 16 })
+            }
+            .width('100%')
+            .height(300)
 
-          List() {
-            ListItem() { this.EnhancedMenuItem('我的足迹', $r('sys.symbol.map'), '#4F94FF') }
-            ListItem() { this.EnhancedMenuItem('我的收藏', $r('sys.symbol.star_fill'), '#FFB119') }
-            ListItem() {
-              this.EnhancedMenuItem('浏览历史', $r('sys.symbol.clock_fill'), '#4CD964', this.history.length.toString())
-            }.onClick(() => promptAction.showToast({ message: '跳转至浏览历史' }))
+            Column() {
+              this.QuickActions()
 
-            ListItem() { this.EnhancedMenuItem('系统设置', $r('sys.symbol.gearshape'), '#8E8E93') }
-            .onClick(() => {
-              router.pushUrl({ url: 'pages/features/mine/settings' })
-                .catch(() => promptAction.showToast({ message: '路径未注册' }))
-            })
-          }
-          .padding({ left: 10, right: 10 })
-          .backgroundColor(Color.White)
-          .borderRadius(20)
-          .divider({ strokeWidth: 0.5, color: '#F0F0F0', startMargin: 45 })
-        }
-        .width('92%')
-        .margin({ top: -40 })
+              List() {
+                ListItem() {
+                  this.EnhancedMenuItem('我的足迹', $r('sys.symbol.map'), '#4F94FF')
+                }.onClick(() => {
+                  this.checkLoginAndExecute(() => {
+                    router.pushUrl({ url: 'pages/features/mine/TraceDetailView' })
+                      .catch(() => promptAction.showToast({ message: '足迹页面路径未注册' }))
+                  })
+                })
 
-        // --- 勋章墙：横向滑动卡片 ---
-        this.SectionTitle('我的勋章', '全部勋章 >')
-        this.BadgeWall()
+                ListItem() {
+                  this.EnhancedMenuItem('我的动态', $r('sys.symbol.star_fill'), '#FFB119')
+                }.onClick(() => {
+                  this.checkLoginAndExecute(() => {
+                    router.pushUrl({
+                      url: 'pages/features/mine/UserHomeView',
+                      params: { userId: this.userId, initialTab: 1 }
+                    })
+                  })
+                })
 
-        // --- 退出登录 ---
-        if (this.isLoggedIn) {
-          Button('退出登录', { type: ButtonType.Capsule })
+                ListItem() {
+                  this.EnhancedMenuItem('浏览历史', $r('sys.symbol.clock_fill'), '#4CD964')
+                }.onClick(() => {
+                  this.checkLoginAndExecute(() => {
+                    router.pushUrl({ url: 'pages/features/mine/HistoryView' })
+                      .catch(() => promptAction.showToast({ message: '历史记录页面未注册' }))
+                  })
+                })
+
+                ListItem() {
+                  this.EnhancedMenuItem('系统设置', $r('sys.symbol.gearshape'), '#8E8E93')
+                }
+                .onClick(() => {
+                  router.pushUrl({ url: 'pages/features/mine/settings' })
+                    .catch(() => promptAction.showToast({ message: '路径未注册' }))
+                })
+              }
+              .padding({ left: 10, right: 10 })
+              .backgroundColor(Color.White)
+              .borderRadius(20)
+              .divider({ strokeWidth: 0.5, color: '#F0F0F0', startMargin: 45 })
+            }
             .width('92%')
-            .height(50)
-            .margin({ top: 40, bottom: 40 })
-            .backgroundColor('#FFF1F3')
-            .fontColor('#FF4D4F')
-            .fontWeight(FontWeight.Medium)
-            .onClick(() => this.handleLogout())
-        }
+            .margin({ top: -40 })
 
-        Blank().height(50)
+            if (this.history.length > 0) {
+              this.SectionTitle('最近浏览', '查看全部 >')
+            }
+
+            this.SectionTitle('我的勋章', '全部勋章 >')
+            this.BadgeWall()
+
+            Blank().height(50)
+          }
+          .width('100%')
+        }
+        .scrollBar(BarState.Off)
+        .backgroundColor('#F7F8FA')
+        .transition(TransitionEffect.asymmetric(
+          TransitionEffect.OPACITY.animation({ duration: 800, curve: Curve.EaseInOut })
+            .combine(TransitionEffect.translate({ y: 20 }))
+            .combine(TransitionEffect.scale({ x: 0.98, y: 0.98 })),
+          TransitionEffect.OPACITY.animation({ duration: 300 })
+        ))
       }
-      .width('100%')
     }
-    .scrollBar(BarState.Off)
-    .backgroundColor('#F7F8FA')
+    .width('100%')
+    .height('100%')
   }
 
-  // --- 模块化 UI 组件 ---
-
-  @Builder
-  UserHeaderCard() {
+  @Builder UserHeaderCard() {
     Row() {
-      Image(this.isLoggedIn && this.userAvatar ? this.userAvatar : $r('app.media.start'))
+      Image((this.userAvatar === 'app.media.start' || !this.userAvatar || this.userAvatar === 'undefined' || this.userAvatar === '')
+        ? $r('app.media.start')
+        : this.userAvatar)
         .width(72)
         .height(72)
         .borderRadius(36)
@@ -103,7 +157,7 @@ export struct MineView {
           .fontWeight(FontWeight.Bold)
           .fontColor('#1A1A1A')
 
-        Text(this.isLoggedIn ?`寻域 ID: ${this.userId}`: 'Hi，欢迎来到寻域')
+        Text(this.isLoggedIn ? `寻域 ID: ${this.userId}` : 'Hi，欢迎来到寻域')
           .fontSize(14)
           .fontColor('#999999')
           .margin({ top: 4 })
@@ -121,15 +175,19 @@ export struct MineView {
     .backgroundBlurStyle(BlurStyle.Thin)
     .borderRadius(24)
     .onClick(() => {
-      if (!this.isLoggedIn) router.pushUrl({ url: 'pages/mine/RegisterView' })
+      if (!this.isLoggedIn) {
+        router.pushUrl({ url: 'pages/mine/RegisterView' })
+      } else {
+        router.pushUrl({ url: 'pages/features/mine/UserHomeView', params: { userId: this.userId } })
+      }
     })
   }
 
   @Builder
   DataOverviewRow() {
     Row() {
-      this.DataItem('128', '足迹(km²)')
-      this.DataItem('5', '获得勋章')
+      this.DataItem('1280', '足迹(km²)')
+      this.DataItem('2', '获得勋章')
       this.DataItem('12', '点亮领域')
     }
     .width('100%')
@@ -153,7 +211,8 @@ export struct MineView {
         SymbolGlyph(icon).fontSize(18).fontColor([iconColor])
       }
       Text(title).fontSize(16).margin({ left: 12 }).layoutWeight(1).fontColor('#333333')
-      if (badge) {
+      // 只有显式传入 badge 且有内容时才显示
+      if (badge && badge !== '0') {
         Text(badge).fontSize(14).fontColor('#999999').margin({ right: 8 })
       }
       SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor(['#D1D1D1'])
@@ -171,6 +230,14 @@ export struct MineView {
     }
     .width('92%')
     .margin({ top: 30, bottom: 16 })
+    .onClick(() => {
+      if (title === '最近浏览') {
+        router.pushUrl({ url: 'pages/features/mine/HistoryView' })
+      } else if (title === '我的勋章') {
+        router.pushUrl({ url: 'pages/features/mine/BadgeView' })
+          .catch(() => promptAction.showToast({ message: '勋章页面未注册' }))
+      }
+    })
   }
 
   @Builder
@@ -178,8 +245,8 @@ export struct MineView {
     Scroll() {
       Row({ space: 12 }) {
         this.BadgeItem('探险家', $r('app.media.ic_explore'), true)
-        this.BadgeItem('社交王', $r('app.media.ic_circle'), true)
-        this.BadgeItem('活地图', $r('app.media.ic_guide'), false)
+        this.BadgeItem('活地图', $r('app.media.ic_guide'), true)
+        this.BadgeItem('社交王', $r('app.media.ic_circle'), false)
         this.BadgeItem('原住民', $r('app.media.ic_mine'), false)
       }
       .padding({ left: 16, right: 16 })
@@ -212,13 +279,19 @@ export struct MineView {
 
   @Builder
   QuickActions() {
-    // 这里可以放类似“发布内容”、“勋章任务”的快捷入口
   }
 
-  handleLogout() {
+  async handleLogout() {
+    const context = getContext(this) as common.UIAbilityContext;
     AppStorage.setOrCreate('isLoggedIn', false);
     AppStorage.setOrCreate('userName', '点击注册/登录');
     AppStorage.setOrCreate('currentUserId', '');
+    AppStorage.setOrCreate('userAvatar', 'app.media.start');
+    await PreferenceManager.put(context, 'isLoggedIn', false);
+    await PreferenceManager.put(context, 'currentUserId', '');
+    await PreferenceManager.put(context, 'userName', '');
+    await PreferenceManager.put(context, 'userAvatar', 'app.media.start');
+
     promptAction.showToast({ message: '已安全退出' });
   }
 }

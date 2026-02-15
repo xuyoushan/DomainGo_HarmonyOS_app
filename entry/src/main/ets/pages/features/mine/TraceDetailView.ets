@@ -81,18 +81,18 @@ struct TraceDetailView {
 
       Divider().color('#33FFFFFF').margin({ top: 20, bottom: 20 })
 
-      Text('你已经探索了成都市 40% 的区域，击败了 85% 的用户！')
+      Text('你已经探索了北京市 40% 的区域，击败了 85% 的用户！')
         .fontSize(14)
-        .fontColor('#FFFFFF') // 强化为纯白
+        .fontColor('#FFFFFF')
         .lineHeight(22)
         .fontWeight(FontWeight.Medium)
     }
     .width('92%')
     .padding(25)
-    .margin({ top: 320 }) // 留出顶部地图视野
-    .backgroundColor('#F21A1A1A') // 接近实色的深色背景，确保文字可读
+    .margin({ top: 320 })
+    .backgroundColor('#F21A1A1A')
     .borderRadius(20)
-    .border({ width: 1, color: '#40FFFFFF' }) // 强化边框感
+    .border({ width: 1, color: '#40FFFFFF' })
   }
 
   @Builder
@@ -104,12 +104,11 @@ struct TraceDetailView {
         .fontColor('#007DFF')
       Text(label)
         .fontSize(13)
-        .fontColor('#CCFFFFFF') // 稍微调亮辅助文字
+        .fontColor('#CCFFFFFF')
         .margin({ top: 4 })
     }
   }
 
-  // B. 增强版时光足迹流
   @Builder
   TimeLineSection() {
     Column() {
@@ -136,7 +135,7 @@ struct TraceDetailView {
               .fontSize(14)
               .fontColor('#CCFFFFFF')
 
-            Text(item === 1 ? '锦江区 · 寻域探索' : '武侯区 · 完成导览')
+            Text(item === 1 ? '锦江区 · 寻域探索' : '朝阳区 · 完成导览')
               .fontSize(17)
               .fontWeight(FontWeight.Bold)
               .fontColor('#FFFFFF')
@@ -152,7 +151,7 @@ struct TraceDetailView {
           }
           .layoutWeight(1)
           .padding(18)
-          .backgroundColor('#F21A1A1A') // 同样使用高浓度背景
+          .backgroundColor('#F21A1A1A')
           .borderRadius(18)
           .margin({ bottom: 20 })
           .border({ width: 1, color: '#20FFFFFF' })

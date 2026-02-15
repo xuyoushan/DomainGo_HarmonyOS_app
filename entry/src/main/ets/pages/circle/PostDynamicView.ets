@@ -14,6 +14,7 @@ interface PostDraft { text: string;images: (string | Resource)[]; }
 struct PostDynamicView {
   @State postText: string = '';
   @StorageLink('currentCity') currentCity: string = '定位中...';
+  @StorageLink('currentUserId') currentUserId: string = '';
   @State selectedLocation: string = '选择位置';
   @StorageLink('mainIndex') mainIndex: number = 0;
   @State selectedImages: (string | Resource)[] = [];
@@ -112,7 +113,6 @@ struct PostDynamicView {
     let query = keyword ? keyword : '地标';
     try {
       this.isSearching = true;
-      // 【关键修改】：增加了 &citylimit=true，确保只在当前城市搜索
       let url = `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(query)}&city=${encodeURIComponent(this.currentCity)}&citylimit=true&offset=20&page=1&key=${amapKey}`;
 
       let response = await httpRequest.request(url);
@@ -163,11 +163,11 @@ struct PostDynamicView {
               try {
                 await postRepo.init(getContext(this));
 
-                // 使用 ?? '' 确保即使获取不到，也是空字符串而不是 undefined
                 const uid: string = AppStorage.get<string>('currentUserId') ?? '';
                 const uName: string = AppStorage.get<string>('userName') ?? '匿名探险家';
                 const currentProv: string = AppStorage.get<string>('currentProvince') ?? '';
                 const currentCity: string = AppStorage.get<string>('currentCity') ?? '';
+                const uAvatar: string = AppStorage.get<string>('userAvatar') ?? '';
 
                 if (!uid || uid === '') {
                   promptAction.showToast({ message: '发布失败：账号异常，请重新登录' });
@@ -199,9 +199,9 @@ struct PostDynamicView {
 
                 const newPost: PostItem = {
                   id: Date.now().toString(),
-                  userId: uid, // 此时 uid 确定是 string
+                  userId: uid,
                   userName: uName,
-                  avatar: $r('app.media.ic_mine_active'),
+                  avatar: (uAvatar && uAvatar !== '') ? uAvatar : $r('app.media.start'),
                   text: this.postText,
                   location: finalLoc,
                   timestamp: Date.now(),
@@ -215,11 +215,9 @@ struct PostDynamicView {
                   collectUserIds: []
                 };
 
-                // 传入 uid，确保第二个参数是 string
                 await postRepo.insertPost(newPost, uid);
 
-                let posts = AppStorage.get<PostItem[]>('globalPostList') ?? [];
-                AppStorage.setOrCreate('globalPostList', [newPost, ...posts]);
+                AppStorage.setOrCreate('needsRefreshPosts', Date.now());
                 AppStorage.setOrCreate('post_draft_obj', null);
 
                 promptAction.showToast({ message: '发布成功' });
@@ -227,7 +225,6 @@ struct PostDynamicView {
                 setTimeout(() => { router.back(); }, 500);
 
               } catch (err) {
-                // 这里的 err 也要处理类型
                 const errorMsg = (err instanceof Error) ? err.message : '未知错误';
                 promptAction.showToast({ message: `发布失败: ${errorMsg}` });
               }

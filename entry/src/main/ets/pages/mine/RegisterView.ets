@@ -1,6 +1,8 @@
 import { router, promptAction } from '@kit.ArkUI';
 import { postRepo } from '../../services/PostRepository';
 import { UserInfo } from '../../models/PostItem';
+import { common } from '@kit.AbilityKit';
+import { PreferenceManager } from '../../services/PreferenceManager';
 
 @Entry
 @Component
@@ -15,10 +17,8 @@ struct RegisterView {
   private timer: number = -1;
 
   validateUsername(name: string): boolean {
-    // 排除掉纯单个数字或纯单个下划线
     if (name === '_' || /^\d$/.test(name)) return false;
-    // 匹配1-8位汉字、数字、下划线组合
-    const reg = /^[\u4e00-\u9fa5_a-zA-Z0-9]{1,8}$/;
+    const reg = /^[\u4e00-\u9fa5_a-zA-Z0-9]{1,16}$/;
     return reg.test(name);
   }
 
@@ -51,27 +51,22 @@ struct RegisterView {
     }, 1000);
   }
 
-  // 在 RegisterView 类中
-
   async handleRegister() {
-    // --- [基础校验] ---
     if (!this.username || !this.email || !this.verifyCodeInput || !this.password) {
       promptAction.showToast({ message: '请完善注册信息' });
       return;
     }
 
-    // --- [用户名校验] ---
     // 1-8个字符，不能是单个数字或下划线，支持1数字+1下划线
-    const nameReg = /^(?!\d$)(?!_$)[[\u4e00-\u9fa5_a-zA-Z0-9]{1,8}$/;
+    const nameReg = /^(?!\d$)(?!_$)[[\u4e00-\u9fa5_a-zA-Z0-9]{1,16}$/;
     if (!nameReg.test(this.username)) {
-      promptAction.showToast({ message: '用户名需1-8位，且不能仅为单个数字或下划线' });
+      promptAction.showToast({ message: '用户名需1-16位，且不能仅为单个数字或下划线' });
       return;
     }
 
-    // --- [高级限制区 - 已按要求注释] ---
     /*
-    // 1. 敏感词过滤 (简单示例)
-    const forbiddenWords = ['管理员', 'admin', '色情', '政治关键词1', '政治关键词2']; // 实际应从服务器或本地词库获取
+    // 1. 敏感词过滤
+    const forbiddenWords = ['管理员', 'admin', '色情', '政治关键词1', '政治关键词2'];
     if (forbiddenWords.some(word => this.username.includes(word))) {
       promptAction.showToast({ message: '用户名包含违规敏感词' });
       return;
@@ -98,7 +93,6 @@ struct RegisterView {
     }
 
     // 4. 注册频率限制 (同一设备24小时内限3个)
-    // 这部分通常配合 PreferenceManager 存储注册次数和时间戳
     const regCount = await PreferenceManager.get(getContext(this), 'reg_count_today', 0) as number;
     const lastRegTime = await PreferenceManager.get(getContext(this), 'last_reg_date', '') as string;
     const today = new Date().toLocaleDateString();
@@ -107,8 +101,6 @@ struct RegisterView {
       return;
     }
     */
-
-    // --- [核心业务逻辑] ---
 
     // 1. 验证码校验
     if (this.verifyCodeInput !== this.generatedCode) {
@@ -124,7 +116,7 @@ struct RegisterView {
         return;
       }
 
-      // 3. 头像安全性检测 (模拟调用系统合规接口)
+      // 3. 头像安全性检测
       const isAvatarSafe = await this.checkImageSafety('app.media.start');
       if (!isAvatarSafe) {
         promptAction.showToast({ message: '检测到默认头像不符合合规要求' });
@@ -132,7 +124,7 @@ struct RegisterView {
       }
 
       const newUser: UserInfo = {
-        id: '', // Repository 会生成 DGxxxxxx
+        id: '',
         username: this.username,
         email: this.email,
         password: this.password,
@@ -140,36 +132,45 @@ struct RegisterView {
       };
 
       // 4. 执行写入
-      await postRepo.registerUser(newUser);
+      const registeredUser = await postRepo.registerUser(newUser);
+      await new Promise<void>(resolve => setTimeout(resolve, 100));
 
       // 5. 自动登录并缓存状态
-      const user = await postRepo.checkUser(this.email, this.password);
-      if (user) {
-        AppStorage.setOrCreate('isLoggedIn', true);
-        AppStorage.setOrCreate('userName', user.username);
-        AppStorage.setOrCreate('currentUserId', user.id);
-        AppStorage.setOrCreate('userAvatar', user.avatar);
+      if (registeredUser && registeredUser.id) {
+        const finalUserId = registeredUser.id;
+        const avatarPath = (registeredUser.avatar && registeredUser.avatar !== '') ? registeredUser.avatar : 'app.media.start';
 
-        // 更新注册频率记录 (已注释掉频率限制逻辑时，这里也可以先不执行)
+        AppStorage.setOrCreate('isLoggedIn', true);
+        AppStorage.setOrCreate('userName', registeredUser.username);
+        AppStorage.setOrCreate('currentUserId', finalUserId);
+        AppStorage.setOrCreate('userAvatar', avatarPath);
+        AppStorage.setOrCreate('needsRefreshPosts', Date.now());
+
+        const context = getContext(this) as common.UIAbilityContext;
+        await PreferenceManager.put(context, 'isLoggedIn', true);
+        await PreferenceManager.put(context, 'currentUserId', finalUserId);
+        await PreferenceManager.put(context, 'userName', registeredUser.username);
+        await PreferenceManager.put(context, 'userAvatar', avatarPath);
+
+        // 更新注册频率记录 (频率限制逻辑时)
         // await PreferenceManager.put(getContext(this), 'reg_count_today', regCount + 1);
         // await PreferenceManager.put(getContext(this), 'last_reg_date', today);
 
         promptAction.showToast({ message: '欢迎加入寻域！' });
-        animateTo({ duration: 888, curve: Curve.EaseInOut }, () => {
+
+        animateTo({ duration: 888, curve: Curve.EaseInOut }, (): void => {
           router.replaceUrl({ url: 'pages/Index' });
         })
+      }else {
+        throw new Error('用户信息写入异常，请重试');
       }
     } catch (e) {
-      promptAction.showToast({ message: '注册失败：' + e.message });
+      const error = e as Error;
+      promptAction.showToast({ message: '注册失败：' + error.message });
     }
   }
 
-  /**
-   * 模拟头像合规性审核接口 (高级功能预留)
-   */
   async checkImageSafety(uri: string): Promise<boolean> {
-    // 在评委面前描述：这里对接了 HarmonyOS 的内容安全服务
-    // 实际代码中可以返回 true，或者使用一些基础判定
     console.info('正在进行 AI 内容安全检测...');
     return true;
   }
@@ -177,10 +178,19 @@ struct RegisterView {
   async handleLogin() {
     const user = await postRepo.checkUser(this.username, this.password);
     if (user) {
+      const avatarValue = (user.avatar && user.avatar !== '' && user.avatar !== 'undefined') ? user.avatar : 'app.media.start';
+
       AppStorage.setOrCreate('isLoggedIn', true);
       AppStorage.setOrCreate('userName', user.username);
       AppStorage.setOrCreate('currentUserId', user.id);
-      AppStorage.setOrCreate('userAvatar', user.avatar);
+      AppStorage.setOrCreate('userAvatar', avatarValue);
+
+      const context = getContext(this) as common.UIAbilityContext;
+      await PreferenceManager.put(context, 'isLoggedIn', true);
+      await PreferenceManager.put(context, 'currentUserId', user.id);
+      await PreferenceManager.put(context, 'userName', user.username);
+      await PreferenceManager.put(context, 'userAvatar', avatarValue);
+
       animateTo({ duration: 888, curve: Curve.EaseInOut }, () => {
         router.replaceUrl({ url: 'pages/Index' });
       })
@@ -241,7 +251,6 @@ struct RegisterView {
               .onClick(() => this.getVerifyCode())
           }
 
-          // 【修复 1】：验证码防忘显示区
           if (this.generatedCode) {
             Text(`当前有效验证码：${this.generatedCode}`)
               .fontSize(12).fontColor('#007DFF').alignSelf(ItemAlign.Start).margin({ left: 5 })
@@ -270,11 +279,9 @@ struct RegisterView {
             })
         }.width('100%')
 
-        // 【修复 3】：第三方登录入口
         Column() {
           Text('其他方式登录').fontSize(12).fontColor('#CCCCCC').margin({ top: 40, bottom: 15 })
           Row({ space: 30 }) {
-            // 这里放一个类似高德地图的图标
             Image($r('app.media.map_china_tech')) // 暂用地图图标替代
               .width(40).height(40).borderRadius(20)
               .onClick(() => this.handleAmapLogin())

@@ -3,6 +3,7 @@ import http from '@ohos.net.http';
 interface WeatherNow { temperature: string; text: string; }
 interface WeatherResult { now: WeatherNow; }
 interface WeatherResponse { results: WeatherResult[]; }
+interface IconRule { condition: (t: string) => boolean;icon: Resource; }
 
 @Component
 export struct WeatherWidget {
@@ -20,27 +21,19 @@ export struct WeatherWidget {
   }
 
   getWeatherIcon(text: string): Resource {
-    let icon = $r('sys.symbol.cloud_sun_fill');
-    if (text.includes('晴')) {
-      icon = $r('sys.symbol.sun_max_fill');
-    } else if (text.includes('雨')) {
-      icon = text.includes('大') || text.includes('暴') ?
-        $r('sys.symbol.cloud_heavy_storm') : $r('sys.symbol.light_rain');
-    } else if (text.includes('雪')) {
-      icon = $r('sys.symbol.snowflake');
-    } else if (text.includes('阴')) {
-      icon = $r('sys.symbol.cloud_fill');
-    } else if (text.includes('多云')) {
-      icon = $r('sys.symbol.cloud_sun_fill');
-    } else if (text.includes('雾') || text.includes('霾')) {
-      icon = $r('sys.symbol.taillight_fog_fill');
-    } else if (text.includes('风') || text.includes('沙') || text.includes('尘')) {
-      icon = $r('sys.symbol.wind');
-    } else if (text.includes('雷')) {
-      icon = $r('sys.symbol.bolt_2_fill');
-    }
-
-    return icon;
+    const iconRules: IconRule[] = [
+      { condition: (t: string): boolean => t.includes('雷'), icon: $r('sys.symbol.bolt_2_fill') },
+      { condition: (t: string): boolean => t.includes('雨') && (t.includes('大') || t.includes('暴')), icon: $r('sys.symbol.cloud_heavy_storm') },
+      { condition: (t: string): boolean => t.includes('雨'), icon: $r('sys.symbol.light_rain') },
+      { condition: (t: string): boolean => t.includes('雪'), icon: $r('sys.symbol.snowflake') },
+      { condition: (t: string): boolean => t.includes('风') || t.includes('沙') || t.includes('尘'), icon: $r('sys.symbol.wind') },
+      { condition: (t: string): boolean => t.includes('雾') || t.includes('霾'), icon: $r('sys.symbol.taillight_fog_fill') },
+      { condition: (t: string): boolean => t.includes('多云'), icon: $r('sys.symbol.cloud_sun_fill') },
+      { condition: (t: string): boolean => t.includes('阴'), icon: $r('sys.symbol.cloud_fill') },
+      { condition: (t: string): boolean => t.includes('晴'), icon: $r('sys.symbol.sun_max_fill') }
+    ];
+    const matchedRule: IconRule | undefined = iconRules.find((r: IconRule): boolean => r.condition(text));
+    return matchedRule ? matchedRule.icon : $r('sys.symbol.cloud_sun_fill');
   }
 
   async fetchRealWeather(city: string) {

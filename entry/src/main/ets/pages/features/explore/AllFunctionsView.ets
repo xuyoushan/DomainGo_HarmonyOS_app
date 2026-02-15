@@ -1,4 +1,3 @@
-// AllFunctionsView.ets
 import { promptAction, router } from '@kit.ArkUI';
 
 interface FunctionItem {
@@ -71,7 +70,7 @@ struct AllFunctionsView {
 
               // ===== 文旅精选（原有）=====
               this.FunctionCard('文旅精选', '玩转城市 · 精选推荐', [
-                { name: '门票预订', icon: $r('sys.symbol.ticket_fill'), color: '#2F80ED' },
+                { name: '休闲娱乐', icon: $r('sys.symbol.play_video_fill'), color: '#2F80ED' },
                 { name: '酒店住宿', icon: $r('sys.symbol.bed_double_fill'), color: '#45B7D1' },
                 { name: '交通出行', icon: $r('sys.symbol.car_fill'), color: '#5AC8FA' }
               ])

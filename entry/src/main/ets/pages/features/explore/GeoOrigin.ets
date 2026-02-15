@@ -51,12 +51,6 @@ struct GeoOriginNewView {
     };
   }
 
-  private getGlmToken(): string {
-    const id = '82e4d46a05264dd19a27e1d91b30dce6';
-    const secret = 'UNpMhFWNznhFSPLo';
-    return `${id}.${secret}`;
-  }
-
   private GLM_MODEL = 'glm-4-flash';
   private aiScroller: Scroller = new Scroller();
 
@@ -88,15 +82,14 @@ struct GeoOriginNewView {
 
     try {
       const response = await httpRequest.request(
-        'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+        'http://localhost:3000/api/chat', // 模拟机
+        // 'http://192.168.10.107:3000/api/chat' //真机
         {
           method: http.RequestMethod.POST,
           header: {
-            'Authorization': `Bearer ${this.getGlmToken()}`,
             'Content-Type': 'application/json'
           },
           extraData: {
-            model: this.GLM_MODEL,
             messages: [
               {
                 role: 'system',

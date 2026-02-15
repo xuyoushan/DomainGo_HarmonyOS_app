@@ -3,9 +3,9 @@
     "pages/Index",
     "pages/guide/GuideView",
     "pages/features/mine/TraceDetailView",
-    "pages/circle/MessageCenterView",
+    "pages/features/circle/MessageCenterView",
     "pages/circle/PostDetailView",
-    "pages/mine/UserHomeView",
+    "pages/features/mine/UserHomeView",
     "pages/circle/PostDynamicView",
     "pages/mine/RegisterView",
     "pages/features/explore/AllFunctionsView",
@@ -24,6 +24,7 @@
     "pages/features/explore/SpecialtyView",
     "pages/features/AllFunctions/CityToolkitView",
     "pages/features/explore/ScenicRecommendView",
-    "pages/features/mine/BadgeView"
+    "pages/features/mine/BadgeView",
+    "pages/features/mine/HistoryView"
   ]
 }

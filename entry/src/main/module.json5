@@ -51,7 +51,6 @@
       {
         "name": "ohos.permission.READ_IMAGEVIDEO",
         "reason": "$string:image_reason",
-        // 需要在 string.json 中定义原因，或直接写字符串
         "usedScene": {
           "abilities": [
             "EntryAbility"
@@ -65,7 +64,6 @@
       {
         "name": "ohos.permission.WRITE_IMAGEVIDEO",
         "reason": "$string:reason_gallery",
-        // 需要在 string.json 中定义原因，或直接写字符串
         "usedScene": {
           "abilities": [
             "EntryAbility"

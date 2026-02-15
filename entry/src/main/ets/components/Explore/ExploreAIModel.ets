@@ -37,11 +37,7 @@ export struct AIChatSheet {
     if (history.length > 0) {
       this.chatMessages = [...history];
     } else {
-      this.isWaitingAI = true;
-      const weatherCombined = `${this.weatherText}, 气温${this.curTemp}度`;
-      ChatGLMService.initChat(this.currentCity, weatherCombined);
-      this.chatMessages = [...ChatGLMService.getHistory()];
-      this.isWaitingAI = false;
+      this.chatMessages = [];
     }
   }
 
@@ -65,12 +61,32 @@ export struct AIChatSheet {
     Column() {
       Row()
       Column() {
-        // 1. AI 助手介绍头部
         Column() {
           Row() {
-            SymbolGlyph($r('sys.symbol.info_circle_fill')).fontSize(18).fontColor(['#6C5CE7'])
-            Text(' 寻域助手 · 深度探索').fontSize(18).fontWeight(FontWeight.Bold).fontColor('#333')
-          }.margin({ bottom: 10 })
+            Row() {
+              SymbolGlyph($r('sys.symbol.info_circle_fill')).fontSize(18).fontColor(['#6C5CE7'])
+              Text(' 寻域助手 · 深度探索').fontSize(18).fontWeight(FontWeight.Bold).fontColor('#333')
+            }
+
+            Blank()
+
+            Button() {
+              Row({ space: 4 }) {
+                SymbolGlyph($r('sys.symbol.arrow_clockwise')).fontSize(14).fontColor(['#6C5CE7'])
+                Text('新对话').fontSize(13).fontColor('#6C5CE7').fontWeight(FontWeight.Medium)
+              }
+            }
+            .backgroundColor('#E8E7FF')
+            .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+            .borderRadius(12)
+            .onClick(() => {
+              ChatGLMService.clearHistory();
+              this.chatMessages = [];
+              promptAction.showToast({ message: '记忆已重置，开始新对话' });
+            })
+          }
+          .width('100%')
+          .margin({ bottom: 10 })
 
           Text(`我可以为你解读${this.currentCity}的历史烟云、寻访地道风味或定制私人游踪。在这座城市，让我们一起去发现不为人知的角落。`)
             .fontSize(14).fontColor('#666').lineHeight(22)
@@ -79,13 +95,11 @@ export struct AIChatSheet {
         .padding(18).backgroundColor('#F0F2F5').borderRadius(16)
         .border({ width: 1, color: '#E4E7ED' })
 
-        // 2. 对话记录列表
         List({ scroller: this.scroller }) {
           ForEach(this.chatMessages, (msg: ChatMessage) => {
             if (msg.role !== 'system') {
               ListItem() {
                 Row() {
-                  // AI 头像展示逻辑
                   if (msg.role === 'assistant') {
                     Column() {
                       SymbolGlyph($r('sys.symbol.AI')).fontSize(22).fontColor([Color.White])
@@ -98,7 +112,6 @@ export struct AIChatSheet {
                     Blank().layoutWeight(1)
                   }
 
-                  // 气泡内容
                   Column() {
                     Text(msg.content)
                       .fontSize(15).lineHeight(24)
@@ -119,7 +132,6 @@ export struct AIChatSheet {
                       })
                   }.constraintSize({ maxWidth: '78%' })
 
-                  // 用户头像展示逻辑
                   if (msg.role === 'user') {
                     Column() {
                       Image($r('app.media.start'))
@@ -138,7 +150,6 @@ export struct AIChatSheet {
             }
           }, (item: ChatMessage) => item.content + Math.random())
 
-          // 等待 AI 推理状态
           if (this.isWaitingAI) {
             ListItem() {
               Row({ space: 6 }) {
@@ -150,7 +161,6 @@ export struct AIChatSheet {
         }
         .layoutWeight(1).padding({ left: 15, right: 15, bottom: 10 }).edgeEffect(EdgeEffect.Spring)
 
-        // 3. 输入框区域
         Row({ space: 12 }) {
           TextInput({ text: this.userChatInput, placeholder: '唤醒城市的记忆...' })
             .layoutWeight(1).height(48).backgroundColor('#F5F7FA').borderRadius(24).padding({ left: 20 })

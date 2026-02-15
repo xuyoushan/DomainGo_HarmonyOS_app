@@ -3,7 +3,7 @@ import { common } from '@kit.AbilityKit';
 import http from '@ohos.net.http';
 import { WeatherWidget } from '../../components/Explore/Weather';
 import { PROVINCE_CITY_DATA } from '../../models/CityData';
-import { CITY_BANNER_CONFIG, CityBanner } from '../../models/CityBannerData';
+import { CITY_BANNER_CONFIG, CityBanner, getBannerByCity } from '../../models/CityBannerData';
 import { promptAction, router, display } from '@kit.ArkUI';
 import { CITY_ROUTES, TravelRoute } from '../../models/RouteData';
 import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA, CityExploreConfig } from '../../models/CityKey';
@@ -125,12 +125,12 @@ export struct ExploreView {
     setTimeout(() => { if (!isFinished) { isFinished = true; } }, 5000);
 
     let httpRequest = http.createHttp();
-    const url = `http://192.168.191.83:5000/get_news/${encodeURIComponent(this.currentCity)}`;
+    const url = `http://192.168.0.102:5000/get_news/${encodeURIComponent(this.currentCity)}`;
 
     try {
       let response = await httpRequest.request(url, {
         method: http.RequestMethod.GET,
-        connectTimeout: 6000, // 爬虫可能慢，超时给长点
+        connectTimeout: 6000,
         expectDataType: http.HttpDataType.OBJECT
       });
       const res = response.result as MyNewsResponse;
@@ -281,14 +281,15 @@ export struct ExploreView {
       Scroll() {
         Column({ space: 20 }) {
           Swiper() {
-            if (CITY_BANNER_CONFIG[this.currentCity]) {
-              ForEach(CITY_BANNER_CONFIG[this.currentCity], (item: CityBanner) => {
-                this.BannerImageItem(item.title, item.image)
-              }, (item: CityBanner) => `${this.currentCity}_${item.title}`)
-            } else {
-              this.BannerItem(`${this.currentCity} · 发现更多`, '#DCDDE1')
-            }
-          }.width('100%').height(this.bannerHeight).autoPlay(true).borderRadius(12)
+            ForEach(getBannerByCity(this.currentCity), (item: CityBanner) => {
+              this.BannerImageItem(item.title, item.image)
+            }, (item: CityBanner) => `${this.currentCity}_${item.title}`)
+          }
+          .width('100%')
+          .height(this.bannerHeight)
+          .autoPlay(this.currentCity !== '定位中...')
+          .borderRadius(12)
+          .key(this.currentCity)
 
           Text('城市不止一种读法。').fontSize(12).fontColor('#999').margin({ top: 10, bottom: 8 })
 
@@ -316,7 +317,6 @@ export struct ExploreView {
                 .layoutWeight(1)
                 .maxLines(1)
             } else {
-              // —— 正常轮播态 —— //
               Swiper() {
                 ForEach(this.newsList, (news: string) => {
                   Column() {
@@ -348,7 +348,7 @@ export struct ExploreView {
           Column() {
             this.HeroArchiveCard()
             Row({ space: 12 }) {
-              this.VerticalFeatureCard('地名寻踪', $r('sys.symbol.doc_text_fill'), '#A29BFE', '探索地名背后的故事\n了解城市的起源\n触摸城市的底蕴')
+              this.VerticalFeatureCard('地名寻踪', $r('sys.symbol.doc_text_fill'), '#A29BFE', '探索地名故事\n了解城市起源\n触摸城市底蕴')
               Column({ space: 12 }) {
                 this.HorizontalFeatureCard('历史轴线', $r('sys.symbol.timer_circle_fill'), '#65bb5c', '穿越时空的城市脉络')
                 this.SquareFeatureCard('文化资源', $r('sys.symbol.flower'), '#FF2D55')
@@ -409,13 +409,13 @@ export struct ExploreView {
 
         }.padding(16)
       }.layoutWeight(1)
-    }.width('100%').height('100%').backgroundColor('#F8F8F8')
+    }.width('100%').height('100%').backgroundColor('#FAFAFA')
   }
 
 
   @Builder BannerImageItem(title: string, img: Resource) {
     Stack({ alignContent: Alignment.BottomStart }) {
-      Image(img).width('100%').height('100%').borderRadius(12).objectFit(ImageFit.Cover)
+      Image(img).width('100%').height('100%').borderRadius(12).objectFit(ImageFit.Cover).alt($r('app.media.start'))
       Text(title).fontSize(16).fontWeight(FontWeight.Bold).fontColor('#FFFFFF').margin(15)
         .textShadow({ radius: 8, color: '#90000000', offsetX: 2, offsetY: 2 })
     }

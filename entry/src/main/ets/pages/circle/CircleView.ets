@@ -2,11 +2,12 @@ import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { PostItem, CommentItem } from '../../models/PostItem';
 import { postRepo } from '../../services/PostRepository';
+import { PreferenceManager } from '../../services/PreferenceManager';
+import { common } from '@kit.AbilityKit';
 
-// 定义通知消息接口
 interface MessageNotification {
   id: string;
-  type: string; // 'like' | 'collect' | 'follow' | 'comment'
+  type: string;
   fromUserName: string;
   fromAvatar: ResourceStr;
   targetContent: string;
@@ -20,9 +21,9 @@ export struct CircleView {
   @StorageLink('globalPostList') globalPosts: PostItem[] = [];
   @StorageLink('followingList') followingList: string[] = [];
   @StorageLink('unreadMessages') unreadMessages: MessageNotification[] = [];
-  // 【新增】账号隔离关键变量
   @StorageLink('currentUserId') currentUserId: string = '';
   @StorageLink('isLoggedIn') isLoggedIn: boolean = false;
+  @StorageLink('needsRefreshPosts') @Watch('onRefreshSignal') refreshSignal: number = 0;
 
   @State currentIndex: number = 1;
   @State isRefreshing: boolean = false;
@@ -34,7 +35,10 @@ export struct CircleView {
 
   private controller: TabsController = new TabsController();
 
-  // --- 【新增】小红书式交互拦截器 ---
+  onRefreshSignal() {
+    this.refreshData();
+  }
+
   checkAuthAndExecute(action: () => void): void {
     if (!this.isLoggedIn || this.currentUserId === '') {
       promptAction.showToast({ message: '请先登录探索更多精彩' });
@@ -44,9 +48,9 @@ export struct CircleView {
     action();
   }
 
-  sendNotification(post: PostItem | null, type: string, targetUserId: string = ''): void {
+  async sendNotification(post: PostItem | null, type: string, targetUserId: string = ''){
     const currentName: string = AppStorage.Get<string>('userName') || '某个探险家';
-    const currentAvatar: Resource = $r('app.media.start');
+    const currentAvatar: string = AppStorage.Get<string>('userAvatar') || 'app.media.start';
 
     let receiverId: string = '';
     if (type === 'follow') {
@@ -56,18 +60,19 @@ export struct CircleView {
     }
 
     if (receiverId !== '' && receiverId !== this.currentUserId) {
-      const newMsg: MessageNotification = {
-        id: Date.now().toString(),
-        type: type,
-        fromUserName: currentName,
-        fromAvatar: currentAvatar,
-        targetContent: (post !== null) ? post.text : `关注了你`,
-        timestamp: Date.now()
-      };
-
-      const updatedMessages: MessageNotification[] = [newMsg];
-      this.unreadMessages = updatedMessages.concat(this.unreadMessages);
-      AppStorage.SetOrCreate('unreadMessages', this.unreadMessages);
+      try {
+        await postRepo.sendNotification(
+          receiverId,
+          this.currentUserId,
+          currentName,
+          currentAvatar,
+          type,
+          (post !== null) ? post.text : `已与你结交`
+        );
+        console.info('通知已成功存入数据库');
+      } catch (err) {
+        console.error('发送通知失败', JSON.stringify(err));
+      }
     }
   }
 
@@ -115,78 +120,179 @@ export struct CircleView {
     }
   }
 
+  getSafeAvatar(data: PostItem): ResourceStr {
+    if (data.userId === this.currentUserId) {
+      const liveAvatar = AppStorage.get<string>('userAvatar');
+      if (liveAvatar && liveAvatar !== 'undefined' && liveAvatar !== '' && liveAvatar !== 'app.media.start') {
+        return liveAvatar;
+      }
+    }
+    const avatar = data.avatar;
+    if (avatar === null || avatar === undefined || avatar === '' || avatar === 'undefined' || avatar === 'null') {
+      return $r('app.media.start');
+    }
+    if (typeof avatar === 'string') {
+      if (avatar.includes('app.media') || avatar.startsWith('resource://')) {
+        return $r('app.media.start');
+      }
+      if (avatar.startsWith('http') || avatar.startsWith('file://') || avatar.startsWith('/data/storage')) {
+        return avatar;
+      }
+      if (avatar.length < 5) return $r('app.media.start');
+    }
+    return (typeof avatar === 'object') ? avatar : $r('app.media.start');
+  }
+
   async refreshData(): Promise<void> {
     this.isRefreshing = true;
     try {
+      if (this.isLoggedIn && this.currentUserId) {
+        const latestUser = await postRepo.getUserById(this.currentUserId);
+        if (latestUser) {
+          AppStorage.setOrCreate('userName', latestUser.username);
+          AppStorage.setOrCreate('userAvatar', latestUser.avatar);
+        }
+      }
       const posts: PostItem[] = await postRepo.fetchAllPosts();
-      this.globalPosts = posts;
+      const newList = posts.map(p => {
+        p.isLiked = (p.likeUserIds || []).includes(this.currentUserId);
+        p.isCollected = (p.collectUserIds || []).includes(this.currentUserId);
+        if (p.avatar === 'app.media.start' || p.avatar === '' || !p.avatar) {
+          p.avatar = $r('app.media.start');
+        }
+        return p;
+      });
+
+      this.globalPosts = newList;
+      AppStorage.setOrCreate('globalPostList', [...newList]);
+
     } catch (e) {
-      console.error("Fetch_Posts_Error");
+      console.error("Refresh_Data_Error");
     } finally {
       this.isRefreshing = false;
     }
   }
 
-  addToHistory(post: PostItem): void {
-    let history: PostItem[] = AppStorage.Get<PostItem[]>('browseHistory') || [];
+  async addToHistory(post: PostItem) {
+    let history: PostItem[] = AppStorage.get<PostItem[]>('browseHistory') || [];
     const filtered = history.filter((item: PostItem) => item.id !== post.id);
-    const updated: PostItem[] = [post];
-    AppStorage.SetOrCreate('browseHistory', updated.concat(filtered).slice(0, 50));
+    const updated = [post].concat(filtered).slice(0, 50);
+    AppStorage.setOrCreate('browseHistory', updated);
+    const context = getContext(this) as common.UIAbilityContext;
+    await PreferenceManager.put(context, 'browseHistory', JSON.stringify(updated));
   }
 
-  // 优化后的点赞逻辑
   async toggleLike(post: PostItem) {
     this.checkAuthAndExecute(async () => {
       const index = this.globalPosts.findIndex(p => p.id === post.id);
       if (index === -1) return;
+      const origin = this.globalPosts[index];
 
-      let p = this.globalPosts[index];
-      if (!p.likeUserIds) p.likeUserIds = [];
+      let updatedPost: PostItem = {
+        id: origin.id,
+        userId: origin.userId,
+        userName: origin.userName,
+        avatar: origin.avatar,
+        text: origin.text,
+        images: origin.images,
+        timestamp: origin.timestamp,
+        location: origin.location,
+        isLiked: origin.isLiked,
+        likeCount: origin.likeCount,
+        likeUserIds: origin.likeUserIds ? [...origin.likeUserIds] : [],
+        isCollected: origin.isCollected,
+        collectUserIds: origin.collectUserIds ? [...origin.collectUserIds] : [],
+        comments: origin.comments
+      };
 
-      const uIdx = p.likeUserIds.indexOf(this.currentUserId);
-      if (uIdx === -1) {
-        p.likeUserIds.push(this.currentUserId);
-        this.sendNotification(p, 'like');
+      const ids = updatedPost.likeUserIds!;
+      const userIdx = ids.indexOf(this.currentUserId);
+
+      if (!updatedPost.isLiked) {
+        if (userIdx === -1) {
+          ids.push(this.currentUserId);
+        }
+        updatedPost.isLiked = true;
+        updatedPost.likeCount++;
+        this.sendNotification(updatedPost, 'like');
       } else {
-        p.likeUserIds.splice(uIdx, 1);
+        if (userIdx !== -1) {
+          ids.splice(userIdx, 1);
+        }
+        updatedPost.isLiked = false;
+        updatedPost.likeCount = Math.max(0, updatedPost.likeCount - 1);
       }
 
-      // 更新状态
-      p.likeCount = p.likeUserIds.length;
-      p.isLiked = p.likeUserIds.includes(this.currentUserId);
+      updatedPost.likeUserIds = ids;
 
-      // 局部替换并触发全局同步
-      this.globalPosts[index] = p;
-      AppStorage.setOrCreate('globalPostList', [...this.globalPosts]);
+      this.globalPosts = this.globalPosts.map(p => p.id === updatedPost.id ? updatedPost : p);
 
-      // 静默更新数据库
-      await postRepo.updatePostStatus(p.id, p.isLiked, p.isCollected, p.likeCount);
+      AppStorage.setOrCreate('globalPostList', this.globalPosts);
+      postRepo.updatePostStatus(
+        updatedPost.id,
+        updatedPost.isLiked,
+        updatedPost.isCollected || false,
+        updatedPost.likeCount,
+        updatedPost.likeUserIds,
+        updatedPost.collectUserIds || []
+      );
     });
   }
 
-  // 优化后的收藏逻辑
   async toggleCollect(post: PostItem) {
     this.checkAuthAndExecute(async () => {
       const index = this.globalPosts.findIndex(p => p.id === post.id);
       if (index === -1) return;
+      const origin = this.globalPosts[index];
 
-      let p = this.globalPosts[index];
-      if (!p.collectUserIds) p.collectUserIds = [];
+      let updatedPost: PostItem = {
+        id: origin.id,
+        userId: origin.userId,
+        userName: origin.userName,
+        avatar: origin.avatar,
+        text: origin.text,
+        images: origin.images,
+        timestamp: origin.timestamp,
+        location: origin.location,
+        isLiked: origin.isLiked,
+        likeCount: origin.likeCount,
+        likeUserIds: origin.likeUserIds ? [...origin.likeUserIds] : [],
+        comments: origin.comments,
+        isCollected: origin.isCollected,
+        collectUserIds: origin.collectUserIds ? [...origin.collectUserIds] : []
+      };
 
-      const uIdx = p.collectUserIds.indexOf(this.currentUserId);
-      if (uIdx === -1) {
-        p.collectUserIds.push(this.currentUserId);
-        this.sendNotification(p, 'collect');
+      const collectIds = updatedPost.collectUserIds!;
+      const userIdx = collectIds.indexOf(this.currentUserId);
+
+      if (!updatedPost.isCollected) {
+        if (userIdx === -1) {
+          collectIds.push(this.currentUserId);
+        }
+        updatedPost.isCollected = true;
+        promptAction.showToast({ message: '已加入收藏列表' });
+        this.sendNotification(updatedPost, 'collect');
       } else {
-        p.collectUserIds.splice(uIdx, 1);
+        if (userIdx !== -1) {
+          collectIds.splice(userIdx, 1);
+        }
+        updatedPost.isCollected = false;
+        promptAction.showToast({ message: '已取消收藏' });
       }
 
-      p.isCollected = p.collectUserIds.includes(this.currentUserId);
+      updatedPost.collectUserIds = collectIds;
 
-      this.globalPosts[index] = p;
-      AppStorage.setOrCreate('globalPostList', [...this.globalPosts]);
+      this.globalPosts = this.globalPosts.map(p => p.id === updatedPost.id ? updatedPost : p);
+      AppStorage.setOrCreate('globalPostList', this.globalPosts);
 
-      await postRepo.updatePostStatus(p.id, p.isLiked, p.isCollected, p.likeCount);
+      await postRepo.updatePostStatus(
+        updatedPost.id,
+        updatedPost.isLiked,
+        updatedPost.isCollected,
+        updatedPost.likeCount,
+        updatedPost.likeUserIds || [],
+        updatedPost.collectUserIds || []
+      );
     });
   }
 
@@ -208,7 +314,7 @@ export struct CircleView {
               .fontSize(24)
               .onClick(() => {
                 this.checkAuthAndExecute(() => {
-                  router.pushUrl({ url: 'pages/circle/MessageCenterView' })
+                  router.pushUrl({ url: 'pages/features/circle/MessageCenterView' })
                 })
               })
             if (this.unreadMessages.length > 0) {
@@ -264,66 +370,109 @@ export struct CircleView {
     }.padding({ left: 12, right: 12 })
   }
 
-  @Builder
-  SocialContentList() {
+  @Builder SocialContentList() {
     Refresh({ refreshing: $$this.isRefreshing }) {
       List({ space: 10 }) {
+        if (this.globalPosts.length === 0) {
+          ListItem() {
+            this.WelcomeFixedCard()
+          }
+        }
         ForEach(
-          this.globalPosts.filter((item: PostItem) => {
-            const matchesSearch: boolean = item && (item.text.toLowerCase().includes(this.searchKey.toLowerCase()) ||
-            item.userName.toLowerCase().includes(this.searchKey.toLowerCase()));
+          this.globalPosts.filter((p: PostItem) => {
+            const k = this.searchKey.toLowerCase().trim();
+            const matchesSearch = !k || p.text.toLowerCase().includes(k) || p.userName.toLowerCase().includes(k);
             if (!matchesSearch) return false;
-
             if (this.currentIndex === 0) {
-              return this.followingList.includes(item.userName);
-            } else if (this.currentIndex === 2) {
-              return item.location.includes(this.currentCity);
+              return this.followingList.includes(p.userId);
+            }
+            else if (this.currentIndex === 2) {
+              return p.location && p.location.includes(this.currentCity || '');
             }
             return true;
           }),
           (item: PostItem) => {
             ListItem() {
-              if (item && item.id) {
-                this.SocialCard(item)
-              }
+              this.SocialCard(item)
             }
           },
-          (item: PostItem) => item.id + String(item.likeUserIds?.length) + String(this.followingList.includes(item.userName))
+          (item: PostItem) => item.id
         )
+        if (this.currentIndex === 0 && this.globalPosts.filter(p => this.followingList.includes(p.userId)).length === 0) {
+          ListItem() {
+            Text('你关注的人还没有发布动态哦')
+              .width('100%')
+              .textAlign(TextAlign.Center)
+              .fontColor('#CCCCCC')
+              .fontSize(14)
+              .margin({ top: 60 })
+          }
+        }
       }
-      .width('100%')
-      .height('100%')
-      .edgeEffect(EdgeEffect.Spring)
-      .padding({ bottom: 20 })
+      .width('100%').height('100%')
+      .edgeEffect(EdgeEffect.Spring).padding({ bottom: 20 })
     }
-    .onRefreshing(() => {
-      this.refreshData();
-    })
+    .onRefreshing(() => this.refreshData())
+  }
+
+  @Builder WelcomeFixedCard() {
+    Column() {
+      Row() {
+        Image($r('app.media.start')).width(40).height(40).borderRadius(20)
+        Column() {
+          Text('寻域官方').fontSize(15).fontWeight(FontWeight.Bold)
+          Text('刚刚').fontSize(12).fontColor('#999999')
+        }.margin({ left: 10 }).alignItems(HorizontalAlign.Start)
+      }.padding(15).width('100%')
+
+      Column() {
+        Text('————欢迎来到寻域————\nDomainGo')
+          .width('100%').textAlign(TextAlign.Center).fontSize(16).fontWeight(FontWeight.Medium).margin({ bottom: 15 })
+        Image($r('app.media.start')).width('100%').height(200).borderRadius(8).objectFit(ImageFit.Cover)
+      }
+      .padding({ left: 15, right: 15, bottom: 15 })
+      .onClick(() => {
+        const data: PostItem = {
+          id: 'fixed_welcome_post',
+          userId: 'admin',
+          userName: '寻域官方',
+          avatar: $r('app.media.start'),
+          text: '————欢迎来到寻域————\nDomainGo',
+          timestamp: Date.now(),
+          images: ['app.media.start'],
+          location: '寻域总部',
+          likeCount: 999,
+          isLiked: false,
+          isCollected: false,
+          comments: []
+        };
+        router.pushUrl({ url: 'pages/circle/PostDetailView', params: { postData: data } })
+      })
+    }
+    .backgroundColor('#FFFFFF').borderRadius(16).margin({ left: 12, right: 12, top: 5, bottom: 5 })
   }
 
   @Builder SocialCard(data: PostItem) {
     Column() {
       Row() {
-        Image($r('app.media.start'))
+        Image(this.getSafeAvatar(data))
           .width(44)
           .height(44)
           .borderRadius(22)
           .objectFit(ImageFit.Cover)
+          .alt($r('app.media.start')) // 加载期间或失败时的占位图
+          .key(data.id + (data.userId === this.currentUserId ? this.timeRefreshTicker : ''))
           .onClick(() => {
-            // 1. 未登录拦截
             if (!this.isLoggedIn) {
               promptAction.showToast({ message: '请先登录探索更多精彩' });
               router.pushUrl({ url: 'pages/mine/RegisterView' });
               return;
             }
-            // 2. 已登录判断身份
+            if (data.id === 'fixed_welcome_post') return;
             if (data.userId === this.currentUserId) {
-              AppStorage.setOrCreate('mainTabIndex', 4);
+              AppStorage.setOrCreate('mainIndex', 4);
             } else {
-              router.pushUrl({
-                url: 'pages/mine/UserHomeView',
-                params: { userId: data.userId }
-              });
+              router.pushUrl({ url: 'pages/features/mine/UserHomeView', params: { userId: data.userId } });
             }
           })
 
@@ -336,9 +485,9 @@ export struct CircleView {
               if (!this.isLoggedIn) {
                 router.pushUrl({ url: 'pages/mine/RegisterView' });
               } else if (data.userId === this.currentUserId) {
-                router.pushUrl({ url: 'pages/Index', params: { tabIndex: 4 } });
+                AppStorage.setOrCreate('mainIndex', 4);
               } else {
-                router.pushUrl({ url: 'pages/mine/UserHomeView', params: { userId: data.userId } });
+                router.pushUrl({ url: 'pages/features/mine/UserHomeView', params: { userId: data.userId } });
               }
             })
 
@@ -363,7 +512,6 @@ export struct CircleView {
       .width('100%')
       .padding({ left: 15, right: 15, top: 12, bottom: 10 })
 
-      // 帖子图片展示
       if (data.images && data.images.length > 0) {
         Image(data.images[0])
           .width('100%')
@@ -376,7 +524,6 @@ export struct CircleView {
           })
       }
 
-      // 帖子正文点击跳转详情
       Text(data.text)
         .fontSize(15)
         .fontColor('#333333')
@@ -388,33 +535,30 @@ export struct CircleView {
           router.pushUrl({ url: 'pages/circle/PostDetailView', params: { postData: data } })
         })
 
-      // 底部交互按钮区（点赞、收藏、评论）
       Row() {
-        // 点赞
         Row() {
           this.InteractionIcon(
-            (data.likeUserIds?.includes(this.currentUserId)) ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'),
+            data.isLiked ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'),
             data.likeCount.toString(),
-            (data.likeUserIds?.includes(this.currentUserId)) ? '#FF4D4F' : '#666666'
+            data.isLiked ? '#FF4D4F' : '#666666'
           )
         }.onClick(() => { this.toggleLike(data) })
 
-        // 收藏
         Row() {
           this.InteractionIcon(
-            (data.collectUserIds?.includes(this.currentUserId)) ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'),
-            (data.collectUserIds?.includes(this.currentUserId)) ? '已收藏' : '收藏',
-            (data.collectUserIds?.includes(this.currentUserId)) ? '#FFAD14' : '#666666'
+            data.isCollected ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'),
+            data.isCollected ? '已收藏' : '收藏',
+            data.isCollected ? '#FFAD14' : '#666666'
           )
         }.onClick(() => { this.toggleCollect(data) })
 
-        // 评论跳转详情
         Row() {
           this.InteractionIcon(
             $r('sys.symbol.message'),
             (data.comments && data.comments.length > 0) ? data.comments.length.toString() : '评论'
           )
         }.onClick(() => {
+          this.addToHistory(data);
           router.pushUrl({ url: 'pages/circle/PostDetailView', params: { postData: data } })
         })
       }

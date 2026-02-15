@@ -4,53 +4,44 @@ import { PreferenceManager } from '../../../services/PreferenceManager';
 import { postRepo } from '../../../services/PostRepository';
 import promptAction from '@ohos.promptAction';
 import { photoAccessHelper } from '@kit.MediaLibraryKit'
+import { PostItem } from '../../../models/PostItem';
 
 @Entry
 @Component
 struct SettingsPage {
   @StorageLink('show_guide_manual') show_guide_manual: boolean = false;
   @StorageLink('isLoggedIn') isLoggedIn: boolean = false;
-  // 全局持久化数据
   @StorageLink('userName') globalUserName: string = '';
   @StorageLink('currentUserId') userId: string = '';
   @StorageLink('userAvatar') globalUserAvatar: string = '';
 
-  // 【修复 1】：使用本地 State 作为缓冲区，防止不点保存就自动修改全局数据
   @State tempName: string = '';
   @State tempAvatar: string = '';
   @State newPassword: string = '';
   @State isChecking: boolean = false;
 
   async aboutToAppear() {
-    // 初始化缓冲区
     this.tempName = this.globalUserName;
     this.tempAvatar = this.globalUserAvatar;
   }
 
-  // 校验用户名：1-8位，不能是单个数字或下划线
   validateUsername(name: string): boolean {
     if (name === '_' || /^\d$/.test(name)) return false;
-    // 严格匹配 1-8 位
     const reg = /^[\u4e00-\u9fa5_a-zA-Z0-9]{1,16}$/;
     return reg.test(name);
   }
 
-  /**
-   * 真实 AI 内容审核模拟
-   */
   async checkImageSafety(uri: string): Promise<boolean> {
     this.isChecking = true;
-    console.info(`DomainGo_AI_Scan: 正在分析图片流 ${uri}`); // 👈 修复变量未读取警告
+    console.info(`DomainGo_AI_Scan: 正在分析图片流 ${uri}`);
     return new Promise((resolve) => {
-      // 模拟 AI 扫描图片二进制流的耗时
       setTimeout(() => {
         this.isChecking = false;
         resolve(true);
-      }, 1500); // 增加扫描感
+      }, 1500);
     });
   }
 
-  // 选择头像并触发审核
   async selectAvatar() {
     try {
       const photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
@@ -81,11 +72,18 @@ struct SettingsPage {
     }
   }
 
-  doLogout() {
+  async doLogout() {
+    const context = getContext(this) as common.UIAbilityContext;
     AppStorage.setOrCreate('isLoggedIn', false);
     AppStorage.setOrCreate('userName', '点击注册/登录');
     AppStorage.setOrCreate('currentUserId', '');
-    AppStorage.setOrCreate('userAvatar', '');
+    AppStorage.setOrCreate('userAvatar', 'app.media.start'); // 统一默认头像标识
+
+    await PreferenceManager.put(context, 'isLoggedIn', false);
+    await PreferenceManager.put(context, 'currentUserId', '');
+    await PreferenceManager.put(context, 'userName', '点击注册/登录');
+    await PreferenceManager.put(context, 'userAvatar', 'app.media.start');
+
     router.clear();
     router.replaceUrl({ url: 'pages/Index' });
   }
@@ -113,7 +111,6 @@ struct SettingsPage {
 
       Scroll() {
         Column() {
-          // --- 分类 1：通用设置 ---
           this.SectionTitle('通用设置')
 
           Row() {
@@ -134,7 +131,6 @@ struct SettingsPage {
           .width('100%').padding(16).backgroundColor(Color.White)
 
           if (this.isLoggedIn) {
-            // --- 分类 2：个人资料 ---
             this.SectionTitle('资料编辑')
 
             Column() {
@@ -164,12 +160,11 @@ struct SettingsPage {
 
               this.EditItem('新密码', '', (v) => this.newPassword = v, true)
 
-              // 【修复 2】：美化后的确认修改按钮
               Button('确认修改')
                 .margin({ top: 30, bottom: 20 })
                 .height(42)
                 .width('50%')
-                .backgroundColor('#FF8F00') // 采用高级深灰色，不再用亮蓝色
+                .backgroundColor('#FF8F00')
                 .fontColor(Color.White)
                 .borderRadius(21)
                 .enabled(!this.isChecking)
@@ -178,24 +173,37 @@ struct SettingsPage {
                     promptAction.showToast({ message: '用户名不合规 (1-16位中英文数字下划线)' });
                     return;
                   }
+                  try {
+                    await postRepo.updateUserInfo(this.userId, this.tempName, this.tempAvatar, this.newPassword);
+                    this.globalUserName = this.tempName;
+                    this.globalUserAvatar = this.tempAvatar;
+                    const context = getContext(this) as common.UIAbilityContext;
+                    await PreferenceManager.put(context, 'userName', this.tempName);
+                    await PreferenceManager.put(context, 'userAvatar', this.tempAvatar);
+                    let posts = AppStorage.get<PostItem[]>('globalPostList') || [];
+                    const updatedPosts = posts.map(p => {
+                      if (p.userId === this.userId) {
+                        p.userName = this.tempName;
+                        p.avatar = this.tempAvatar;
+                      }
+                      return p;
+                    });
+                    AppStorage.setOrCreate('globalPostList', updatedPosts);
+                    AppStorage.setOrCreate('needsRefreshPosts', Date.now());
+                    promptAction.showToast({ message: '修改成功' });
+                    router.back();
 
-                  // 同步到数据库 (重要：必须传 tempAvatar)
-                  await postRepo.updateUserInfo(this.userId, this.tempName, this.tempAvatar, this.newPassword);
-
-                  // 同步到全局状态
-                  this.globalUserName = this.tempName;
-                  this.globalUserAvatar = this.tempAvatar;
-
-                  promptAction.showToast({ message: '修改成功' });
-                  router.back();                })
+                  } catch (e) {
+                    const error = e as Error;
+                    promptAction.showToast({ message: '保存失败: ' + error.message });
+                  }
+                })
             }
             .backgroundColor(Color.White)
 
-            // --- 分类 3：账号管理 ---
             this.SectionTitle('账号安全')
 
             Column() {
-              // 【修复 3】：退出确认提示
               this.ActionItem('退出账号', Color.Black, () => {
                 promptAction.showDialog({
                   title: '退出提醒',
@@ -204,13 +212,9 @@ struct SettingsPage {
                     { text: '取消', color: '#000000' },
                     { text: '退出', color: '#FF4D4F' }
                   ]
-                }).then((data) => {
+                }).then(async (data) => {
                   if (data.index === 1) {
-                    AppStorage.setOrCreate('isLoggedIn', false);
-                    AppStorage.setOrCreate('userName', '点击注册/登录');
-                    AppStorage.setOrCreate('currentUserId', '');
-                    AppStorage.setOrCreate('userAvatar', '');
-                    router.back();
+                    await this.doLogout();
                   }
                 })
               })
@@ -229,9 +233,22 @@ struct SettingsPage {
                       message: '这是您最后一次后悔的机会，确定删除吗？',
                       buttons: [{ text: '我再想想', color: '#000' }, { text: '确定删除', color: '#FF4D4F' }]
                     }).then(async (final) => {
+                      // settings.ets 里的注销最终确认部分
                       if (final.index === 1) {
                         await postRepo.deleteUserAccount(this.userId);
-                        this.doLogout();
+                        const context = getContext(this) as common.UIAbilityContext;
+                        AppStorage.setOrCreate('isLoggedIn', false);
+                        AppStorage.setOrCreate('userName', '点击注册/登录');
+                        AppStorage.setOrCreate('currentUserId', '');
+                        AppStorage.setOrCreate('userAvatar', 'app.media.start');
+                        await PreferenceManager.put(context, 'isLoggedIn', false);
+                        await PreferenceManager.put(context, 'currentUserId', '');
+                        await PreferenceManager.put(context, 'userName', '');
+                        await PreferenceManager.put(context, 'userAvatar', 'app.media.start');
+
+                        promptAction.showToast({ message: '账号已永久注销' });
+                        router.clear();
+                        router.replaceUrl({ url: 'pages/Index' });
                       }
                     })
                   }

@@ -7,17 +7,20 @@ export interface UserInfo {
 }
 
 export interface CommentItem {
+  userId:string;
   userName: string;
   avatar: ResourceStr;
   content: string;
   timestamp: number;
+  likeCount?: number;
+  isLiked?: boolean;
 }
 
 export interface PostItem {
   id: string;
   userId: string;
   userName: string;
-  avatar: Resource;
+  avatar: ResourceStr;
   text: string;
   location: string;
   timestamp: number;
