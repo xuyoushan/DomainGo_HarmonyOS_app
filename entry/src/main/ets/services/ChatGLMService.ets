@@ -17,7 +17,7 @@ export type ChatMode = 'guide' | 'copywriting' | 'casual' | 'dating';
 
 export class ChatGLMService {
 
-  private static readonly API_URL = 'http://192.168.10.107:3000/api/chat';
+  private static readonly API_URL = 'http://192.168.10.105:3000/api/chat';
   private static chatHistory: ChatMessage[] = [];
   private static currentMode: ChatMode | null = null;
 

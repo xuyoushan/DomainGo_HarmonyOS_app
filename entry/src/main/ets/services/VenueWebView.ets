@@ -7,9 +7,6 @@ import { photoAccessHelper } from '@kit.MediaLibraryKit'
 import { abilityAccessCtrl, common } from '@kit.AbilityKit'
 import { notificationManager } from '@kit.NotificationKit';
 
-/* =========================================================
- * 通用 WebView 组件
- * ========================================================= */
 @Component
 struct CommonWebContainer {
   @Prop url: string
@@ -83,9 +80,6 @@ struct CommonWebContainer {
   }
 }
 
-/* =========================================================
- * 业务页面：场馆官网预约
- * ========================================================= */
 @Entry
 @Component
 struct VenueWebView {
@@ -103,7 +97,7 @@ struct VenueWebView {
   @State autoCaptureEnabled: boolean = true
   @State autoCaptureNotified: boolean = false
   @State firstBookingCaptured: boolean = false
-  @State screenshotUri: string = '' // ✅ 新增：记录截图路径供行程页使用
+  @State screenshotUri: string = ''
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, Venue>
@@ -118,7 +112,6 @@ struct VenueWebView {
     this.webUrl = params['venue'].officialUrl ?? ''
   }
 
-  /* ================= 功能 1：针对不同分类的特殊提醒横幅 ================= */
   @Builder
   WarningBanner() {
     if (this.venue.category === '学术殿堂' || this.venue.isUniversity) {
@@ -138,7 +131,6 @@ struct VenueWebView {
     }
   }
 
-  /* ================= 保存截图 ================= */
   async saveToGallery(showToast: boolean) {
     const context = getContext(this) as common.UIAbilityContext
     const atManager = abilityAccessCtrl.createAtManager()
@@ -157,7 +149,7 @@ struct VenueWebView {
       const pixelMap = await componentSnapshot.get('webContainer')
       const helper = photoAccessHelper.getPhotoAccessHelper(context)
       const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, 'jpg')
-      this.screenshotUri = uri // ✅ 记录 URI
+      this.screenshotUri = uri
 
       const file = await fileIo.open(
         uri,
@@ -190,7 +182,6 @@ struct VenueWebView {
     }
   }
 
-  /* ================= 预约逻辑：生成动态彩蛋标题 ================= */
   generateSmartTitle(): string {
     if (this.venue.category === '学术殿堂' || this.venue.isUniversity) return `学术探访：${this.venue.name}`;
     if (this.venue.category === '文博馆') return `文博之旅：${this.venue.name}`;
@@ -200,7 +191,6 @@ struct VenueWebView {
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       Column() {
-        /* ================= 顶部栏 ================= */
         Row() {
           SymbolGlyph($r('sys.symbol.xmark'))
             .fontSize(22)
@@ -220,17 +210,13 @@ struct VenueWebView {
         .padding(15)
         .backgroundColor(Color.White)
 
-        /* ✅ 功能 1：特殊提醒横幅 */
         this.WarningBanner()
 
-        /* ================= 通用 WebView ================= */
         CommonWebContainer({
           url: this.webUrl
         }).layoutWeight(1)
 
-        /* ================= 底部操作 ================= */
         Column() {
-          /* ✅ 功能 2：截图引导提示层 */
           Row() {
             SymbolGlyph($r('sys.symbol.info_circle')).fontSize(14).fontColor(['#999'])
             Text(' 预约成功后请手动截图或点击上方相机存证')
@@ -242,19 +228,18 @@ struct VenueWebView {
             .height(46)
             .backgroundColor('#007DFF')
             .onClick(async () => {
-              // ✅ 功能 3：自动截图与带参跳转
               if (this.autoCaptureEnabled && !this.firstBookingCaptured) {
                 this.firstBookingCaptured = true
                 await this.saveToGallery(false)
               }
 
               router.pushUrl({
-                url: 'pages/features/ScheduleView',
+                url: 'pages/features/AllFunctions/ScheduleView',
                 params: {
-                  presetTitle: this.generateSmartTitle(), // 彩蛋标题
+                  presetTitle: this.generateSmartTitle(),
                   presetLocation: this.venue.address,
                   presetDesc: `已预约完成，入馆地址：${this.venue.address}`,
-                  evidenceImage: this.screenshotUri // 传递截图凭证
+                  evidenceImage: this.screenshotUri
                 }
               })
             })

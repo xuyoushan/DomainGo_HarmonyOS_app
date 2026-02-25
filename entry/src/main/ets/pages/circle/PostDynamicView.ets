@@ -4,10 +4,12 @@ import { PostItem } from '../../models/PostItem';
 import { postRepo } from '../../services/PostRepository';
 import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import { promptAction } from '@kit.ArkUI';
+import fs from '@ohos.file.fs';
 
 interface AmapPoi { name: string;address: string;adname: string; }
 interface AmapResponse { status: string;pois: AmapPoi[]; }
 interface PostDraft { text: string;images: (string | Resource)[]; }
+interface PostContinuationState { text: string;images: string[];location: string;cursor: number; }
 
 @Entry
 @Component
@@ -17,36 +19,81 @@ struct PostDynamicView {
   @StorageLink('currentUserId') currentUserId: string = '';
   @State selectedLocation: string = '选择位置';
   @StorageLink('mainIndex') mainIndex: number = 0;
-  @State selectedImages: (string | Resource)[] = [];
+  @State selectedImages: string[] = [];
   @State tags: string[] = ['旅行', '美食', '探店', '打卡'];
   @State selectedTags: string[] = [];
   @State showLocationSearch: boolean = false;
   @State searchKey: string = '';
   @State searchResults: AmapPoi[] = [];
   @State isSearching: boolean = false;
-  @StorageLink('currentProvince') currentProvince: string = ''; // 引入省份监听
+  @StorageLink('currentProvince') currentProvince: string = '';
+
+  private controller: TextAreaController = new TextAreaController();
+  private currentCursor: number = 0;
 
   aboutToAppear() {
-    // 1. 优先获取路由参数，判断是否为“编辑修改”模式
+    if (AppStorage.get<boolean>('isContinuation')) {
+      this.postText = AppStorage.get<string>('contText') || '';
+      this.selectedImages = AppStorage.get<string[]>('contImages') || [];
+      this.selectedLocation = AppStorage.get<string>('contLoc') || '选择位置';
+      this.currentCursor = AppStorage.get<number>('contCursor') || 0;
+
+      AppStorage.delete('isContinuation');
+      AppStorage.delete('contText');
+      AppStorage.delete('contImages');
+      AppStorage.delete('contLoc');
+
+      this.syncState();
+      setTimeout(() => {
+        this.controller.caretPosition(this.currentCursor);
+      }, 50);
+      return;
+    }
+
     const params = router.getParams() as Record<string, Object>;
     if (params && params.editData) {
       const editPost = params.editData as PostItem;
-      this.postText = editPost.text; // 填充原有文字
-      this.selectedImages = [...editPost.images]; // 填充原有图片
-      this.selectedLocation = editPost.location; // 填充原有位置
-      // 可以在这里给一个 State 变量(如 isEditMode)赋值 true，用于发布按钮的判断
+      this.postText = editPost.text;
+      this.selectedImages = [...editPost.images] as string[];
+      this.selectedLocation = editPost.location;
     }
-    // 2. 如果不是修改模式，再检查是否有本地保存的草稿
     else {
       const draft = AppStorage.get<PostDraft>('post_draft_full');
       if (draft) {
         this.postText = draft.text;
-        this.selectedImages = draft.images;
+        this.selectedImages = draft.images as string[];
       }
+    }
+    this.syncState();
+  }
+
+  syncState() {
+    const currentState: PostContinuationState = {
+      text: this.postText,
+      images: this.selectedImages,
+      location: this.selectedLocation,
+      cursor: this.currentCursor
+    };
+    AppStorage.setOrCreate('current_post_state', currentState);
+    console.info('PostContinuation: State synchronized');
+  }
+
+  async copyToDist(uri: string): Promise<string> {
+    try {
+      let context = getContext(this);
+      let fileName = `dist_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
+      let destPath = `${context.distributedFilesDir}/${fileName}`;
+      let file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+      fs.copyFileSync(file.fd, destPath);
+      fs.closeSync(file);
+
+      return destPath;
+    } catch (e) {
+      console.error('DistCopyError: ' + JSON.stringify(e));
+      return uri;
     }
   }
 
-  // 拦截系统返回键/手势
   onBackPress() {
     if (this.postText.length > 0 || this.selectedImages.length > 0) {
       promptAction.showDialog({
@@ -62,20 +109,19 @@ struct PostDynamicView {
             text: this.postText,
             images: this.selectedImages
           };
-          AppStorage.setOrCreate('post_draft_obj', draft);
+          AppStorage.setOrCreate('post_draft_full', draft);
           promptAction.showToast({ message: '草稿已保存' });
           router.back();
         } else {
-          AppStorage.setOrCreate('post_draft_obj', null);
+          AppStorage.delete('post_draft_full');
           router.back();
         }
       })
-      return true; // 拦截默认返回
+      return true;
     }
-    return false; // 内容为空直接返回
+    return false;
   }
 
-  // --- 1. 相册选择逻辑 ---
   async selectImages() {
     try {
       let photoSelectOptions: photoAccessHelper.PhotoSelectOptions = {
@@ -86,14 +132,18 @@ struct PostDynamicView {
       let photoSelectResult = await photoPicker.select(photoSelectOptions);
 
       if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
-        this.selectedImages = [...this.selectedImages, ...photoSelectResult.photoUris];
+        for (let uri of photoSelectResult.photoUris) {
+          const distPath = await this.copyToDist(uri);
+          this.selectedImages.push(distPath);
+        }
+        this.selectedImages = [...this.selectedImages];
+        this.syncState();
       }
     } catch (err) {
       promptAction.showToast({ message: '选择图片失败' });
     }
   }
 
-  // --- 2. 标签提取逻辑 ---
   extractHashTags(text: string): string[] {
     if (!text) return [];
     let tags: string[] = [];
@@ -106,7 +156,6 @@ struct PostDynamicView {
     return tags;
   }
 
-  // --- 3. 地点搜索逻辑 ---
   async searchPoi(keyword: string) {
     let httpRequest = http.createHttp();
     const amapKey = 'd4552bc3e20af2857f9cfd5ac95ded1d';
@@ -174,7 +223,6 @@ struct PostDynamicView {
                   return;
                 }
 
-                // --- 位置处理逻辑 ---
                 let finalLoc: string = '';
                 const hasSelectedPoi = (this.selectedLocation !== '选择位置' && this.selectedLocation !== '');
 
@@ -218,7 +266,13 @@ struct PostDynamicView {
                 await postRepo.insertPost(newPost, uid);
 
                 AppStorage.setOrCreate('needsRefreshPosts', Date.now());
-                AppStorage.setOrCreate('post_draft_obj', null);
+
+                AppStorage.delete('post_draft_full');
+                AppStorage.delete('isContinuation');
+                AppStorage.delete('contText');
+                AppStorage.delete('contImages');
+                AppStorage.delete('contLoc');
+                AppStorage.delete('current_post_state');
 
                 promptAction.showToast({ message: '发布成功' });
                 this.mainIndex = 1;
@@ -234,15 +288,26 @@ struct PostDynamicView {
 
         Scroll() {
           Column() {
-            TextArea({ placeholder: '分享你点亮的领域和探索足迹...', text: this.postText })
+            TextArea({ placeholder: '分享你点亮的领域和探索足迹...', text: this.postText, controller: this.controller })
               .width('100%').height(160).backgroundColor(Color.Transparent)
-              .fontSize(16).onChange((v) => this.postText = v)
+              .fontSize(16)
+              .onChange((v) => {
+                this.postText = v;
+                this.syncState();
+              })
+              .onCopy(() => {})
+              .onTextSelectionChange((start: number) => {
+                this.currentCursor = start;
+                this.syncState();
+              })
+
 
             Grid() {
-              ForEach(this.selectedImages, (uri: string, index: number) => {
+              ForEach(this.selectedImages, (path: string, index: number) => {
                 GridItem() {
                   Stack({ alignContent: Alignment.TopEnd }) {
-                    Image(uri).width('100%').height(100).borderRadius(8).objectFit(ImageFit.Cover)
+                    Image(path.startsWith('file://') ? path : 'file://' + path)
+                      .width('100%').height(100).borderRadius(8).objectFit(ImageFit.Cover)
                     if (index === 0) {
                       Text('封面').fontSize(10).fontColor(Color.White).backgroundColor('#007DFF')
                         .padding({ left: 4, right: 4 }).borderRadius({ topRight: 8, bottomLeft: 8 })
@@ -251,10 +316,11 @@ struct PostDynamicView {
                       .onClick(() => {
                         this.selectedImages.splice(index, 1);
                         this.selectedImages = [...this.selectedImages];
+                        this.syncState();
                       })
                   }.width(100).height(100)
                 }
-              }, (uri: string, index: number) => uri + index)
+              }, (path: string, index: number) => path + index)
 
               if (this.selectedImages.length < 9) {
                 GridItem() { this.AddImageBtn() }
@@ -262,16 +328,17 @@ struct PostDynamicView {
             }
             .columnsTemplate('1fr 1fr 1fr').columnsGap(10).rowsGap(10).width('100%').margin({ top: 10 })
             .height(Math.ceil((this.selectedImages.length + 1) / 3) * 110).editMode(true)
-            .onItemDragStart((event: ItemDragInfo, itemIndex: number) => {
+            .onItemDragStart((_: ItemDragInfo, itemIndex: number) => {
               if (itemIndex >= this.selectedImages.length) return null;
               return this.myDragPreview(this.selectedImages[itemIndex]);
             })
-            .onItemDrop((event: ItemDragInfo, itemIndex: number, insertIndex: number, isSuccess: boolean) => {
+            .onItemDrop((_: ItemDragInfo, itemIndex: number, insertIndex: number, isSuccess: boolean) => {
               if (!isSuccess || insertIndex >= this.selectedImages.length || itemIndex >= this.selectedImages.length) return;
               let temp = this.selectedImages[itemIndex];
               this.selectedImages.splice(itemIndex, 1);
               this.selectedImages.splice(insertIndex, 0, temp);
               this.selectedImages = [...this.selectedImages];
+              this.syncState();
             })
 
             List() {
@@ -290,8 +357,12 @@ struct PostDynamicView {
                         .backgroundColor(this.selectedTags.includes(tag) ? '#E6F2FF' : '#F5F5F5')
                         .fontColor(this.selectedTags.includes(tag) ? '#007DFF' : '#666666')
                         .borderRadius(12).onClick(() => {
-                        if (this.selectedTags.includes(tag)) { this.selectedTags = this.selectedTags.filter(t => t !== tag) }
-                        else { this.selectedTags.push(tag) }
+                        if (this.selectedTags.includes(tag)) {
+                          this.selectedTags = this.selectedTags.filter(t => t !== tag)
+                        } else {
+                          this.selectedTags.push(tag)
+                        }
+                        this.syncState();
                       })
                     })
                   }.margin({ top: 5, left: 35 })
@@ -317,18 +388,25 @@ struct PostDynamicView {
               ListItem() { Text('正在搜索附近地点...').width('100%').textAlign(TextAlign.Center).padding(20).fontColor('#999') }
             }
             ListItem() { Text('不显示位置').fontColor('#007DFF').fontSize(16).padding(15) }
-            .onClick(() => { this.selectedLocation = ''; this.showLocationSearch = false; })
+            .onClick(() => {
+              this.selectedLocation = '';
+              this.showLocationSearch = false;
+              this.syncState();
+            })
             ForEach(this.searchResults, (item: AmapPoi) => {
               ListItem() {
                 Column() {
                   Text(item.name).fontSize(16).fontColor('#333')
                   Text(item.address || item.adname).fontSize(12).fontColor('#999').margin({ top: 4 })
                 }.width('100%').alignItems(HorizontalAlign.Start).padding(15)
-              }.onClick(() => { this.selectedLocation = item.name;
+              }.onClick(() => {
+                this.selectedLocation = item.name;
                 if (item.adname) {
                   this.selectedLocation = item.adname + ' · ' + item.name;
                 }
-                this.showLocationSearch = false; })
+                this.showLocationSearch = false;
+                this.syncState();
+              })
             })
           }.layoutWeight(1).width('100%').divider({ strokeWidth: 1, color: '#F1F3F5' })
         }.width('100%').height('95%').backgroundColor('#FFFFFF').borderRadius({ topLeft: 16, topRight: 16 })

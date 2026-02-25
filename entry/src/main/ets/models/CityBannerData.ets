@@ -16,33 +16,33 @@ export const CITY_BANNER_CONFIG: Record<string, CityBanner[]> = {
     new CityBanner('颐和园 · 昆明湖色', $r('app.media.bj_bj_4')),
     new CityBanner('三里屯 · 时尚中心', $r('app.media.bj_bj_5'))
   ],
-//   '上海市': [
-//     new CityBanner('外滩 · 万国建筑', $r('app.media.sh_sh_1')),
-//     new CityBanner('陆家嘴 · 摩天楼群', $r('app.media.sh_sh_2')),
-//     new CityBanner('豫园 · 城隍记忆', $r('app.media.sh_sh_3')),
-//     new CityBanner('南京路 · 十里洋场', $r('app.media.sh_sh_4')),
-//     new CityBanner('迪士尼 · 奇妙梦幻', $r('app.media.sh_sh_5'))
-//   ],
-//   '天津市': [
-//     new CityBanner('天津之眼 · 摩天之轮', $r('app.media.tj_tj_1')),
-//     new CityBanner('意式风情区 · 欧陆景观', $r('app.media.tj_tj_2')),
-//     new CityBanner('古文化街 · 津味民俗', $r('app.media.tj_tj_3'))
-//   ],
-//   '重庆市': [
-//     new CityBanner('洪崖洞 · 吊脚夜色', $r('app.media.cq_cq_1')),
-//     new CityBanner('李子坝 · 轻轨穿楼', $r('app.media.cq_cq_2')),
-//     new CityBanner('解放碑 · 时光之门', $r('app.media.cq_cq_3')),
-//     new CityBanner('武隆 · 地质奇观', $r('app.media.cq_cq_4')),
-//     new CityBanner('磁器口 · 巴渝古镇', $r('app.media.cq_cq_5'))
-//   ],
-//
-//   // 2. 华中地区 (鄂、湘、豫)
-//   '武汉市': [
-//     new CityBanner('黄鹤楼 · 荆楚名胜', $r('app.media.hb_wh_1')),
-//     new CityBanner('长江大桥 · 跨江巨龙', $r('app.media.hb_wh_2')),
-//     new CityBanner('东湖 · 樱海缤纷', $r('app.media.hb_wh_3')),
-//     new CityBanner('省博 · 楚剑风华', $r('app.media.hb_wh_4'))
-//   ],
+  '上海市': [
+    new CityBanner('外滩 · 万国建筑', $r('app.media.sh_sh_1')),
+    new CityBanner('陆家嘴 · 摩天楼群', $r('app.media.sh_sh_2')),
+    new CityBanner('豫园 · 城隍记忆', $r('app.media.sh_sh_3')),
+    new CityBanner('南京路 · 十里洋场', $r('app.media.sh_sh_4')),
+    new CityBanner('迪士尼 · 奇妙梦幻', $r('app.media.sh_sh_5'))
+  ],
+  '天津市': [
+    new CityBanner('天津之眼 · 摩天之轮', $r('app.media.tj_tj_1')),
+    new CityBanner('意式风情区 · 欧陆景观', $r('app.media.tj_tj_2')),
+    new CityBanner('古文化街 · 津味民俗', $r('app.media.tj_tj_3'))
+  ],
+  '重庆市': [
+    new CityBanner('洪崖洞 · 吊脚夜色', $r('app.media.cq_cq_1')),
+    new CityBanner('李子坝 · 轻轨穿楼', $r('app.media.cq_cq_2')),
+    new CityBanner('解放碑 · 时光之门', $r('app.media.cq_cq_3')),
+    new CityBanner('武隆 · 地质奇观', $r('app.media.cq_cq_4')),
+    new CityBanner('磁器口 · 巴渝古镇', $r('app.media.cq_cq_5'))
+  ],
+
+  // 2. 华中地区 (鄂、湘、豫)
+  '武汉市': [
+    new CityBanner('黄鹤楼 · 荆楚名胜', $r('app.media.hb_wh_1')),
+    new CityBanner('长江大桥 · 跨江巨龙', $r('app.media.hb_wh_2')),
+    new CityBanner('东湖 · 樱海缤纷', $r('app.media.hb_wh_3')),
+    new CityBanner('省博 · 楚剑风华', $r('app.media.hb_wh_4'))
+  ],
 //   '宜昌市': [
 //     new CityBanner('三峡大坝 · 国之重器', $r('app.media.hb_yc_1')),
 //     new CityBanner('清江画廊 · 山水如画', $r('app.media.hb_yc_2')),

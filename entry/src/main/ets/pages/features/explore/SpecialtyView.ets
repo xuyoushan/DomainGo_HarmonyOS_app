@@ -11,7 +11,6 @@ struct SpecialtyView {
   @State isShowPreview: boolean = false;
   @State previewImage: Resource | string = '';
   @State selectedIndex: number = -1;
-  // 支持多项同时展开：存储展开项目的ID
   @State expandedIds: number[] = [];
 
   aboutToAppear() {
@@ -120,7 +119,6 @@ struct SpecialtyView {
       }
       .width('100%')
 
-      // 百科展示区：移除闪现动画，调大字体
       if (this.expandedIds.includes(item.id)) {
         Column() {
           Column() {

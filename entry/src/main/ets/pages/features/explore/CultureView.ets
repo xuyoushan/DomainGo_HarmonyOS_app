@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { CultureStory, CityCultureSpecialty, CULTURE_SPECIALTY_MAP } from '../../../models/CultureSpecialtyData';
+import { CultureStory, CULTURE_SPECIALTY_MAP } from '../../../models/CultureSpecialtyData';
 
 @Entry
 @Component
@@ -178,7 +178,6 @@ struct CultureView {
     )
   }
 
-  /* ======================= 主体 ======================= */
   build() {
     Stack({ alignContent: Alignment.Top }) {
       this.NavigationHeader()

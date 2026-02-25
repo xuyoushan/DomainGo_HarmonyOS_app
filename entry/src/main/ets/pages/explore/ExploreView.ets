@@ -113,8 +113,6 @@ export struct ExploreView {
     })
   }
 
-
-
   async fetchRealNews() {
     const USE_REAL_CRAWLER = true;
     if (!USE_REAL_CRAWLER) {
@@ -125,7 +123,7 @@ export struct ExploreView {
     setTimeout(() => { if (!isFinished) { isFinished = true; } }, 5000);
 
     let httpRequest = http.createHttp();
-    const url = `http://192.168.0.102:5000/get_news/${encodeURIComponent(this.currentCity)}`;
+    const url = `http://192.168.10.105:5000/get_news/${encodeURIComponent(this.currentCity)}`;
 
     try {
       let response = await httpRequest.request(url, {
@@ -143,7 +141,7 @@ export struct ExploreView {
         this.newsList = [`暂未发现 ${this.currentCity} 的今日快报`];
       }
     } catch (err) {
-      this.newsList = ["文旅部动态更新中..."]; // 失败时的占位符
+      this.newsList = ["文旅部动态更新中..."];
     } finally {
       httpRequest.destroy();
     }
@@ -293,7 +291,6 @@ export struct ExploreView {
 
           Text('城市不止一种读法。').fontSize(12).fontColor('#999').margin({ top: 10, bottom: 8 })
 
-          // 寻域快报
           Row() {
             Text('寻域快报')
               .fontSize(14)
@@ -308,7 +305,6 @@ export struct ExploreView {
               .color('#EEE')
               .flexShrink(0)
 
-            // 右侧内容区域
             if (this.isCitySwitching) {
               Text(`正在同步 ${this.currentCity.replace('市', '')} 城市快报…`)
                 .fontSize(12)
@@ -374,12 +370,11 @@ export struct ExploreView {
             .padding({ top: 20, bottom: 20 })
             .backgroundColor(Color.White)
             .borderRadius(20)
-            .shadow({ radius: 20, color: 'rgba(0,0,0,0.05)', offsetY: 8 }) // 柔和浮空投影
+            .shadow({ radius: 20, color: 'rgba(0,0,0,0.05)', offsetY: 8 })
           }
           .padding({ left: 16, right: 16 })
           Text('慢慢探索，每一次出行都有惊喜。').fontSize(12).fontColor('#999').margin({ top: 10, bottom: 8 })
 
-          // 正在讨论
           Column() {
             this.SectionHeader(`今天的${this.currentCity.replace('市','')}在讨论什么`)
             Scroll() {
@@ -458,7 +453,6 @@ export struct ExploreView {
     }.width('100%').padding(15).backgroundColor('#FFFFFF').borderRadius(12).margin({ bottom: 10 }).onClick(() => this.jumpToGuide(route))
   }
 
-  // 🖼️ 【画卷入口】城市印象
   @Builder HeroArchiveCard() {
     Stack({ alignContent: Alignment.BottomStart }) {
       Image($r('app.media.city_impression_placeholder'))
@@ -487,7 +481,6 @@ export struct ExploreView {
     })
   }
 
-  // 📚 【竖向档案】地名寻踪
   @Builder VerticalFeatureCard(title: string, icon: Resource, color: string, desc: string) {
     Column() {
       SymbolGlyph(icon).fontSize(32).fontColor([color]).margin({ bottom: 15 })
@@ -504,7 +497,6 @@ export struct ExploreView {
     .onClick(() => router.pushUrl({ url: 'pages/features/explore/GeoOrigin' }))
   }
 
-  // ⏳ 【横向脉络】历史轴线
   @Builder HorizontalFeatureCard(title: string, icon: Resource, color: string, desc: string) {
     Row() {
       Column() {
@@ -519,7 +511,6 @@ export struct ExploreView {
     .onClick(() => router.pushUrl({ url: 'pages/features/explore/CityHistoryPage' }))
   }
 
-  // 🎨 【画廊卡片】景点/特产/文化
   @Builder GalleryCard(name: string, icon: Resource, color: string) {
     Column() {
       Stack() {

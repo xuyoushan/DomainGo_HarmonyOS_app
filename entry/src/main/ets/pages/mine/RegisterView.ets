@@ -64,7 +64,6 @@ struct RegisterView {
       return;
     }
 
-    /*
     // 1. 敏感词过滤
     const forbiddenWords = ['管理员', 'admin', '色情', '政治关键词1', '政治关键词2'];
     if (forbiddenWords.some(word => this.username.includes(word))) {
@@ -100,7 +99,6 @@ struct RegisterView {
       promptAction.showToast({ message: '同一设备每日最多注册3个账号' });
       return;
     }
-    */
 
     // 1. 验证码校验
     if (this.verifyCodeInput !== this.generatedCode) {
@@ -204,13 +202,13 @@ struct RegisterView {
 
     const amapNickName = "高德探险家_" + Math.floor(Math.random()*100);
     const amapUser: UserInfo = {
-      id: '', // 自动生成 DG ID
+      id: '',
       username: amapNickName,
       email: 'amap_user@auto.com',
       avatar: 'ic_mine_active'
     };
 
-    await postRepo.registerUser(amapUser); // 自动注册/记录
+    await postRepo.registerUser(amapUser);
     AppStorage.setOrCreate('isLoggedIn', true);
     AppStorage.setOrCreate('userName', amapNickName);
     router.replaceUrl({ url: 'pages/Index' });
@@ -282,7 +280,7 @@ struct RegisterView {
         Column() {
           Text('其他方式登录').fontSize(12).fontColor('#CCCCCC').margin({ top: 40, bottom: 15 })
           Row({ space: 30 }) {
-            Image($r('app.media.map_china_tech')) // 暂用地图图标替代
+            Image($r('app.media.map_china_tech'))
               .width(40).height(40).borderRadius(20)
               .onClick(() => this.handleAmapLogin())
 

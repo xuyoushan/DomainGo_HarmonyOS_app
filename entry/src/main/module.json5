@@ -19,12 +19,10 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
-    // --- 新增权限声明开始 ---
     "requestPermissions": [
       {
         "name": "ohos.permission.APPROXIMATELY_LOCATION",
         "reason": "$string:location_reason",
-        // 需要在 string.json 中定义原因，或直接写字符串
         "usedScene": {
           "abilities": [
             "EntryAbility"
@@ -92,11 +90,11 @@
         }
       }
     ],
-    // --- 新增权限声明结束 ---
     "abilities": [
       {
         "name": "EntryAbility",
         "srcEntry": "./ets/entryability/EntryAbility.ets",
+        "continuable": true,
         "description": "$string:EntryAbility_desc",
         "icon": "$media:layered_image",
         "label": "$string:EntryAbility_label",
