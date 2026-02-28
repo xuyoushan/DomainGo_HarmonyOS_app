@@ -4,7 +4,6 @@ import preferences from '@ohos.data.preferences';
 import { common } from '@kit.AbilityKit';
 import wantAgent from '@ohos.app.ability.wantAgent';
 
-// 这里保留你定义的接口
 interface MySchedule {
   id: string;
   title: string;
@@ -23,19 +22,15 @@ export default class EntryFormAbility extends FormExtensionAbility {
 
     this.initializeFormData(formId, context);
 
-    // 必须同步返回初始绑定对象
     return formBindingData.createFormBindingData({});
   }
 
-  // 新增内部方法：承接你原来的异步逻辑，确保 formId 被保存并刷新
   private async initializeFormData(formId: string, context: common.Context) {
     try {
-      // --- 这里是你新增的逻辑，完全保留 ---
       const pref = await preferences.getPreferences(context, 'travel_db');
       await pref.put('current_form_id', formId);
       await pref.flush();
 
-      // 调用你写的 updateForm
       await this.updateForm(formId, context);
     } catch (err) {
       console.error('[FormAbility] initializeFormData failed');
@@ -60,7 +55,7 @@ export default class EntryFormAbility extends FormExtensionAbility {
     const wantAgentInfo: wantAgent.WantAgentInfo = {
       wants: [
         {
-          bundleName: 'com.youshan.domaingo', // ⚠️ 确认你的包名
+          bundleName: 'com.youshan.domaingo',
           abilityName: 'EntryAbility',
           parameters: {
             route: 'scheduleview'

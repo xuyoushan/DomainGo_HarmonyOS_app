@@ -6,17 +6,14 @@ export struct CardListComponent {
   @Prop isLarge: boolean = false;
 
   build() {
-    // 修正：整个 build 内部只能有一个根容器 Stack
     Stack() {
       if (this.schedules.length === 0) {
         this.EmptyView()
       } else {
-        // 使用 Column 包裹内部的条件判断，确保逻辑清晰且符合单一节点原则
         Column() {
           if (this.isLarge) {
             this.ListView()
           } else {
-            // 只有当 schedules 有数据时才渲染
             this.SingleView(this.schedules[0])
           }
         }

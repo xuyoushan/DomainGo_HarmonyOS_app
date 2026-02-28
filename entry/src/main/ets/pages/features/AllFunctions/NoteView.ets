@@ -1,8 +1,8 @@
-import { router, promptAction } from '@kit.ArkUI' // 补充导入 promptAction
-import { photoAccessHelper } from '@kit.MediaLibraryKit' // 导入相册库
+import { router, promptAction } from '@kit.ArkUI'
+import { photoAccessHelper } from '@kit.MediaLibraryKit'
 import preferences from '@ohos.data.preferences'
-import { geoLocationManager } from '@kit.LocationKit' // 导入定位模块
-import { http } from '@kit.NetworkKit' // 导入网络模块用于请求高德API
+import { geoLocationManager } from '@kit.LocationKit'
+import { http } from '@kit.NetworkKit'
 
 class RegeoInfo {formatted_address: string = ''}
 class AMapRegeoResult {status: string = ''
@@ -23,19 +23,18 @@ struct NoteView {
   @State inputTags: string = ''
   @State editingId: number | null = null
   @State keyword: string = ''
-  @State previewImage: string | null = null   // 图片预览
-  @State currentLocation: string = '' // 当前正在定位的地址
-  @State isLocating: boolean = false // 定位状态
-  @State suggestions: SuggestionTip[] = [] // 预测建议列表
-  @State showSuggestions: boolean = false  // 是否显示建议面板
+  @State previewImage: string | null = null
+  @State currentLocation: string = ''
+  @State isLocating: boolean = false
+  @State suggestions: SuggestionTip[] = []
+  @State showSuggestions: boolean = false
   @StorageLink('currentCity') cityContext: string = ''
 
-  // --- 🎨 核心历史系配色语义定义 ---
-  private colorPageBg: string = '#F4F1EC'    // 羊皮纸灰
-  private colorCard: string = '#FBFAF7'      // 暖白卡片
-  private colorPrimary: string = '#2F4A5A'   // 青黛 (主要交互)
-  private colorSecondary: string = '#9C6B3F' // 赭石 (历史/足迹强调)
-  private colorMuted: string = '#8C857B'     // 弱文字
+  private colorPageBg: string = '#F4F1EC'
+  private colorCard: string = '#FBFAF7'
+  private colorPrimary: string = '#2F4A5A'
+  private colorSecondary: string = '#9C6B3F'
+  private colorMuted: string = '#8C857B'
   private amapKey: string = 'd4552bc3e20af2857f9cfd5ac95ded1d' // 高德API Key
 
   private pref: preferences.Preferences | null = null
@@ -55,12 +54,11 @@ struct NoteView {
     try {
       let PhotoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
       PhotoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
-      PhotoSelectOptions.maxSelectNumber = 3; // 最多选3张
+      PhotoSelectOptions.maxSelectNumber = 3;
       let photoPicker = new photoAccessHelper.PhotoViewPicker();
       let photoSelectResult = await photoPicker.select(PhotoSelectOptions);
 
       if (photoSelectResult.photoUris.length > 0) {
-        // 将选中的图片加入数组
         this.selectedImages = [...this.selectedImages, ...photoSelectResult.photoUris].slice(0, 3)
       }
     } catch (err) {
@@ -94,7 +92,6 @@ struct NoteView {
   async fetchLocation() {
     this.isLocating = true
     try {
-      // 获取坐标
       let request: geoLocationManager.LocationRequest = {
         'priority': geoLocationManager.LocationRequestPriority.FIRST_FIX,
         'scenario': geoLocationManager.LocationRequestScenario.UNSET,
@@ -102,7 +99,6 @@ struct NoteView {
       };
       let location = await geoLocationManager.getCurrentLocation(request);
 
-      // 请求高德逆地理编码
       let url = `https://restapi.amap.com/v3/regeo?key=${this.amapKey}&location=${location.longitude},${location.latitude}`;
       let httpRequest = http.createHttp();
       let response = await httpRequest.request(url);
@@ -143,15 +139,15 @@ struct NoteView {
       this.editingId = note.id
       this.inputText = note.content
       this.inputTags = note.tags.join(',')
-      this.selectedImages = [...note.images]   // 回填图片
-      this.currentLocation = note.location || '' // 回填位置
+      this.selectedImages = [...note.images]
+      this.currentLocation = note.location || ''
     } else {
       this.editingId = null
       this.inputText = ''
       this.inputTags = ''
       this.selectedImages = []
       this.currentLocation = ''
-      this.fetchLocation() // 新建记录时自动“寻踪”
+      this.fetchLocation()
     }
   }
 
@@ -166,7 +162,7 @@ struct NoteView {
           return {
             id: n.id, content: this.inputText, time: n.time,
             tags: tags, lastEdit: Date.now(), images: this.selectedImages,
-            location: this.currentLocation // 保存位置信息
+            location: this.currentLocation
           }
         }
         return n
@@ -179,7 +175,7 @@ struct NoteView {
         tags,
         images: this.selectedImages,
         lastEdit: Date.now(),
-        location: this.currentLocation // 保存位置信息
+        location: this.currentLocation
       }
       this.notes = [newNote, ...this.notes]
     }
@@ -199,13 +195,13 @@ struct NoteView {
   }
 
   build() {
-    Stack() { // 使用 Stack 以支持全屏预览覆盖
+    Stack() {
       Column() {
         Row() {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(22)
             .padding({ top: 12, bottom: 12 })
-            .fontColor([this.colorPrimary]) // 视觉：青黛
+            .fontColor([this.colorPrimary])
             .onClick(() => {
               if (this.detailNote) {
                 this.detailNote = null
@@ -220,17 +216,17 @@ struct NoteView {
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
             .margin({ left: 12 })
-            .fontColor(this.colorPrimary) // 视觉：青黛
+            .fontColor(this.colorPrimary)
 
           Blank()
 
           if (!this.editorVisible && !this.detailNote) {
             SymbolGlyph($r('sys.symbol.plus_circle_fill'))
               .fontSize(26)
-              .fontColor([this.colorPrimary]) // 视觉：由蓝转青黛
+              .fontColor([this.colorPrimary])
               .onClick(() => this.openEditor())
           } else if (this.editorVisible) {
-            Text('记录') // 语义：由“保存”转为“记录”
+            Text('记录')
               .fontColor(this.colorPrimary)
               .fontWeight(FontWeight.Bold)
               .fontSize(17)
@@ -244,16 +240,14 @@ struct NoteView {
         if (!this.detailNote && !this.editorVisible) {
           TextInput({ placeholder: '搜索过往足迹或标签', text: this.keyword })
             .margin({ left: 16, right: 16, bottom: 8 })
-            .backgroundColor('#E6E1D8') // 视觉：纸张感灰色
+            .backgroundColor('#E6E1D8')
             .placeholderColor(this.colorMuted)
             .onChange(v => this.keyword = v)
         }
 
         if (this.editorVisible) {
           Column() {
-            // 1. 定位与预测组合区
             Column() {
-              // ✅【视觉修饰】带有下划线的可编辑定位区
               Row() {
                 SymbolGlyph($r('sys.symbol.location_right_fill'))
                   .fontSize(14)
@@ -280,12 +274,11 @@ struct NoteView {
                     .onClick(() => this.fetchLocation())
                 }
               }
-              .margin({ bottom: 0, left: 4, right: 4 }) // 底部边距由父容器控制
+              .margin({ bottom: 0, left: 4, right: 4 })
               .padding({ bottom: 6 })
               .width('100%')
               .border({ width: { bottom: 0.5 }, color: '#D1CDC2' })
 
-              // ✅【新增】预测建议悬浮列表 - 紧贴在下划线下方
               if (this.showSuggestions && this.suggestions.length > 0) {
                 Column() {
                   List() {
@@ -318,7 +311,7 @@ struct NoteView {
                     })
                   }
                   .width('100%')
-                  .scrollBar(BarState.Off) // 隐藏滚动条让视觉更干净
+                  .scrollBar(BarState.Off)
                 }
                 .constraintSize({ maxHeight: 200 })
                 .width('100%')
@@ -331,7 +324,6 @@ struct NoteView {
             .width('100%')
             .margin({ bottom: 10 })
 
-            // 2. 正文输入区
             TextArea({ placeholder: '写下此刻的行走与所见…', text: this.inputText })
               .height(180)
               .backgroundColor(Color.Transparent)
@@ -341,18 +333,16 @@ struct NoteView {
               .onChange(v => this.inputText = v)
               .onFocus(() => { this.showSuggestions = false })
 
-            // 图片展示区
             Flex({ wrap: FlexWrap.Wrap }) {
               ForEach(this.selectedImages, (img: string) => {
                 Stack({ alignContent: Alignment.TopEnd }) {
                   Image(img)
-                    .width(100).height(100).borderRadius(12).margin(4) // 视觉：圆角加大
+                    .width(100).height(100).borderRadius(12).margin(4)
                   SymbolGlyph($r('sys.symbol.xmark_circle_fill'))
                     .fontColor(['#FF4D4F'])
                     .fontSize(20)
                     .offset({ x: -4, y: 4 })
                     .onClick(() => {
-                      // ✅ 叙事化二次确认
                       promptAction.showDialog({
                         title: '移除画面',
                         message: '确定移除此画面吗？记录将不再包含此瞬间。',
@@ -368,7 +358,6 @@ struct NoteView {
                     })
                 }
               })
-              // 添加图片按钮
               if (this.selectedImages.length < 3) {
                 Column() {
                   SymbolGlyph($r('sys.symbol.plus')).fontSize(30).fontColor([this.colorMuted])
@@ -393,7 +382,7 @@ struct NoteView {
 
               Blank()
 
-              Text('阁笔') // 语义：取消改为阁笔
+              Text('阁笔')
                 .fontSize(15)
                 .fontColor(this.colorMuted)
                 .margin({ right: 20 })
@@ -405,7 +394,7 @@ struct NoteView {
                   this.selectedImages = []
                   this.currentLocation = ''
                 })
-              Text('完成记录') // 语义：确认保存改为完成记录
+              Text('完成记录')
                 .fontSize(15)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(this.colorPrimary)
@@ -424,7 +413,7 @@ struct NoteView {
               Row() {
                 Text(`📍 ${this.detailNote.time}`)
                   .fontSize(15)
-                  .fontColor(this.colorSecondary) // 视觉：赭石色
+                  .fontColor(this.colorSecondary)
                 if (this.detailNote.location) {
                   Text(` · ${this.detailNote.location}`)
                     .fontSize(14)
@@ -450,7 +439,7 @@ struct NoteView {
               }
 
               Text(this.detailNote.content)
-                .fontSize(20) // 视觉：详情页阅读字号
+                .fontSize(20)
                 .fontColor(this.colorPrimary)
                 .margin({ top: 10 })
                 .textAlign(TextAlign.Start)
@@ -473,13 +462,12 @@ struct NoteView {
               .margin({ top: 24 })
               .width('100%')
 
-              // 详情页操作区
               Row({ space: 24 }) {
-                Text('润色') // 语义：编辑改为润色
+                Text('润色')
                   .fontColor(this.colorPrimary)
                   .onClick(() => this.openEditor(this.detailNote!))
 
-                Text('抹去') // 语义：删除改为抹去
+                Text('抹去')
                   .fontColor('#A39480')
                   .onClick(() => {
                     promptAction.showDialog({
@@ -602,7 +590,7 @@ struct NoteView {
         }
         .width('100%')
         .height('100%')
-        .backgroundColor('#F0000000') // 视觉：极深色透明背景
+        .backgroundColor('#F0000000')
         .zIndex(100)
         .transition(TransitionEffect.OPACITY)
         .onClick(() => this.previewImage = null)

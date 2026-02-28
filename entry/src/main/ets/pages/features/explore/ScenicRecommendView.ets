@@ -29,7 +29,6 @@ struct ScenicRecommendView {
   @StorageLink('currentCity') cityName: string = '北京市'
   @State currentCategory: string = '全部'
   @State searchKeyword: string = ''
-  // 🔹 修改1：分类已精简，删除了“一日路线”
   @State categories: string[] = ['全部', '人文', '自然']
   @State scenicList: ScenicUIItem[] = []
   @State bgBaseColor: string = '#F6F7F9'
@@ -48,7 +47,6 @@ struct ScenicRecommendView {
   private aiTimer: number = -1;
   private searchTimer: number = -1;
 
-  // 🔹 修改2：修复后的平台选择逻辑 (使用 ActionSheet 官方规范)
   private showPlatformSelector(item: ScenicUIItem) {
     ActionSheet.show({
       title: `预订 ${item.name}`,

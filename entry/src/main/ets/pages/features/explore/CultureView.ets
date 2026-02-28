@@ -15,7 +15,6 @@ struct CultureView {
     this.data = CULTURE_SPECIALTY_MAP[this.currentCity]?.cultureStories || [];
   }
 
-  /* ======================= 顶部导航 ======================= */
   @Builder
   NavigationHeader() {
     if (!this.isImmersive) {
@@ -40,11 +39,9 @@ struct CultureView {
     }
   }
 
-  /* ======================= 无数据提示 (Empty State) ======================= */
   @Builder
   EmptyState() {
     Stack() {
-      // 艺术感背景遮罩
       Column()
         .width('100%')
         .height('100%')
@@ -80,7 +77,6 @@ struct CultureView {
     .height('100%')
   }
 
-  /* ======================= 故事卡片 ======================= */
   @Builder
   StoryCard(item: CultureStory, index: number) {
     Stack({ alignContent: Alignment.Top }) {
@@ -225,7 +221,6 @@ struct CultureView {
     .height('100%')
   }
 
-  /* ======================= 详情面板 ======================= */
   @Builder
   DetailPanel() {
     Column() {
@@ -237,10 +232,8 @@ struct CultureView {
             .fontSize(36)
             .fontWeight(FontWeight.Bold)
             .fontColor(this.data[this.currentIndex].accentColor)
-            // .fontColor(Color.Black)
 
           Divider()
-            // .color(this.data[this.currentIndex].accentColor)
             .color(Color.Black)
             .strokeWidth(6)
             .width(72)

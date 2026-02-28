@@ -1,7 +1,5 @@
-// utils/StarChartUtils.ets
 import { HistoryNode } from '../models/HistoryData'
 
-// 显式定义点接口
 export interface Point {
   x: number;
   y: number;
@@ -16,13 +14,11 @@ export interface StarDust {
   opacity: number;
 }
 
-// 显式定义经纬线接口
 export interface GridLine {
   p1: Point;
   p2: Point;
 }
 
-// 视觉节点接口
 export interface VisualNode extends HistoryNode {
   nodeColor: string;
 }
@@ -43,26 +39,23 @@ export class StarChartProvider {
     const stepY = containerHeight / (count + 1)
     const amplitude = containerWidth * 0.25
 
-    // ====== 1. 分段随机锚点 ======
     const segmentSize = 4
     let anchors: number[] = []
     for (let i = 0; i < Math.ceil(count / segmentSize) + 1; i++) {
       anchors.push((Math.random() * 2 - 1) * amplitude)
     }
 
-    // ====== 2. 生成原始节点点坐标 ======
     let rawPoints: Point[] = []
     for (let i = 0; i < count; i++) {
       const segIndex = Math.floor(i / segmentSize)
       const localT = (i % segmentSize) / segmentSize
-      const t = localT * localT * (3 - 2 * localT) // smoothstep
+      const t = localT * localT * (3 - 2 * localT)
       const offsetX = anchors[segIndex] * (1 - t) + anchors[segIndex + 1] * t
       const x = centerX + offsetX
       const y = (i + 1) * stepY
       rawPoints.push({ x, y })
     }
 
-    // ====== 3. Catmull-Rom 插值平滑曲线 ======
     let smoothPoints: Point[] = []
     for (let i = 0; i < rawPoints.length; i++) {
       const p0: Point = i - 1 < 0 ? rawPoints[0] : rawPoints[i - 1]
@@ -91,7 +84,6 @@ export class StarChartProvider {
       }
     }
 
-    // ====== 4. 生成 VisualNode ======
     for (let i = 0; i < count; i++) {
       const item = rawNodes[i]
       const p: Point = smoothPoints[i * 4]
@@ -137,16 +129,11 @@ export class StarChartProvider {
     return dusts;
   }
 
-  /**
-   * 时空经纬网
-   */
   static generateGridLines(w: number, h: number): GridLine[] {
     let lines: GridLine[] = [];
-    // [修改] 纵线每 80vp
     for (let x = 0; x <= w; x += 80) {
       lines.push({ p1: { x, y: 0 }, p2: { x, y: h } });
     }
-    // [修改] 横线每 160vp
     for (let y = 0; y <= h; y += 160) {
       lines.push({ p1: { x: 0, y }, p2: { x: w, y } });
     }

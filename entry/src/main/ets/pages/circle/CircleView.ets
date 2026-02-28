@@ -460,7 +460,7 @@ export struct CircleView {
           .height(44)
           .borderRadius(22)
           .objectFit(ImageFit.Cover)
-          .alt($r('app.media.start')) // 加载期间或失败时的占位图
+          .alt($r('app.media.start'))
           .key(data.id + (data.userId === this.currentUserId ? this.timeRefreshTicker : ''))
           .onClick(() => {
             if (!this.isLoggedIn) {

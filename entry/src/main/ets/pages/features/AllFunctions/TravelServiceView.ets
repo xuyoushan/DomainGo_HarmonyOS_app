@@ -12,7 +12,7 @@ struct TravelServiceView {
   @StorageLink('currentCity') currentCity: string = '武汉市';
   @State selectedIndex: number = 2;
   @State destination: string = '';
-  @State poiList: string[] = []; // 搜索建议列表
+  @State poiList: string[] = [];
   @State isShowPlatforms: boolean = false;
   @State currentMode: string = '';
   @State activePlatforms: string[] = [];
@@ -20,7 +20,6 @@ struct TravelServiceView {
   @State isShowTrafficDetail: boolean = false;
   @State selectedTrafficItem: UniqueTraffic | null = null;
 
-  // private context = getContext(this);
   private context = getContext(this) as common.UIAbilityContext;
 
   aboutToAppear() {
@@ -79,7 +78,7 @@ struct TravelServiceView {
       }
       if (platform === '高德') uri = `amapuri://route/plan/?dname=${dest}&dev=0&t=0`;
       else if (platform === '百度') uri = `baidumap://map/direction?destination=${dest}&mode=driving&region=${city}`;
-      else uri = `diditaxi://`; // 滴滴等其他平台
+      else uri = `diditaxi://`;
     } else if (this.currentMode === 'bike' || this.currentMode === 'bus') {
       if (platform === '微信') uri = 'weixin://dl/scan';
       else if (platform === '支付宝') uri = 'alipays://platformapi/startapp?appId=10000007';
@@ -121,7 +120,6 @@ struct TravelServiceView {
 
       if (this.isShowPlatforms) this.PlatformPicker()
 
-      // 弹窗层逻辑：完全保留
       if (this.isShowTrafficDetail && this.selectedTrafficItem) {
         this.DetailPanel(
           this.selectedTrafficItem.name,

@@ -21,7 +21,7 @@ export class PostRepository {
     for (let i = 0; i < 6; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    // result += Date.now().toString().slice(-4); // 加时间戳
+    result += Date.now().toString().slice(-4); // 时间戳
     return result;
   }
 
@@ -75,7 +75,7 @@ export class PostRepository {
   }
 
   async sendNotification(receiverId: string, senderId: string, senderName: string, senderAvatar: string, type: string, content: string) {
-    if (!this.store || receiverId === senderId) return; // 自己给自己点赞不发通知
+    if (!this.store || receiverId === senderId) return;
     let valueBucket: relationalStore.ValuesBucket = {
       'ID': 'MSG_' + Date.now(),
       'RECEIVER_ID': receiverId,
@@ -191,7 +191,6 @@ export class PostRepository {
     if (!this.store) return;
     const finalId: string = (user.id && user.id.length > 0) ? user.id : this.generateCustomId();
     const bucket: relationalStore.ValuesBucket = {
-      // ID: user.id || this.generateCustomId(),
       'ID': finalId,
       USERNAME: user.username,
       EMAIL: user.email,

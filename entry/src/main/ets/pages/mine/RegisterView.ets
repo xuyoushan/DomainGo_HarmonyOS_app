@@ -217,9 +217,11 @@ struct RegisterView {
   build() {
     Column() {
       Text('DomainGo')
-        .fontSize(32)
+        .fontSize(34)
         .fontWeight(FontWeight.Bold)
-        .fontColor('#007DFF')
+        .fontFamily('Playfair Display')
+        .letterSpacing(1)
+        .fontColor('#7A6A45')
         .margin({ top: 80, bottom: 8 })
 
       Text(this.isLoginMode ? '发现属于你的域' : '开启探险之旅')
@@ -228,24 +230,47 @@ struct RegisterView {
         .margin({ bottom: 40 })
 
       Column({ space: 15 }) {
-        TextInput({ placeholder: '用户名', text: this.username })
-          .height(52).backgroundColor('#F5F7F9').borderRadius(12)
+        TextInput({ placeholder: '邮箱', text: this.username })
+          .height(52)
+          .backgroundColor('rgba(255,255,255,0.65)')
+          .border({ width: 1, color: '#E6D8C3' })
+          .borderRadius(8)
+          .shadow({ radius: 6, color: '#20000000' })
+          .fontColor('#4A4A4A')
           .onChange((v) => this.username = v)
 
         if (!this.isLoginMode) {
           TextInput({ placeholder: '邮箱地址', text: this.email })
-            .height(52).backgroundColor('#F5F7F9').borderRadius(12)
+            .height(52)
+            .backgroundColor('rgba(255,255,255,0.65)')
+            .border({ width: 1, color: '#E6D8C3' })
+            .borderRadius(8)
+            .shadow({ radius: 6, color: '#20000000' })
+            .fontColor('#4A4A4A')
+
             .onChange((v) => this.email = v)
 
           Row() {
             TextInput({ placeholder: '验证码', text: this.verifyCodeInput })
-              .height(52).layoutWeight(1).backgroundColor('#F5F7F9').borderRadius(12)
+              .height(52).layoutWeight(1)
+              .backgroundColor('rgba(255,255,255,0.65)')
+              .border({ width: 1, color: '#E6D8C3' })
+              .borderRadius(8)
+              .shadow({ radius: 6, color: '#20000000' })
+              .fontColor('#4A4A4A')
+
               .onChange((v) => this.verifyCodeInput = v)
 
             Button(this.countdown > 0 ? `${this.countdown}s` : '获取')
-              .height(52).width(80).margin({ left: 10 }).borderRadius(12)
-              .backgroundColor(this.countdown > 0 ? '#EEEEEE' : '#007DFF')
-              .fontColor(this.countdown > 0 ? '#999999' : '#FFFFFF')
+              .height(52)
+              .width(80)
+              .margin({ left: 10 })
+              .borderRadius(12)
+              .backgroundColor('#E8DCC2')
+              .border({ width: 1, color: '#D8C7A0' })
+              .shadow({ radius: 8, color: '#15000000', offsetY: 3 })
+              .fontColor('#3E3A35')
+
               .onClick(() => this.getVerifyCode())
           }
 
@@ -256,11 +281,26 @@ struct RegisterView {
         }
 
         TextInput({ placeholder: '密码', text: this.password })
-          .type(InputType.Password).height(52).backgroundColor('#F5F7F9').borderRadius(12)
+          .type(InputType.Password).height(52)
+          .backgroundColor('rgba(255,255,255,0.65)')
+          .border({ width: 1, color: '#E6D8C3' })
+          .borderRadius(8)
+          .shadow({ radius: 6, color: '#20000000' })
+          .fontColor('#4A4A4A')
+
           .onChange((v) => this.password = v)
 
         Button(this.isLoginMode ? '进入 DomainGo' : '立即注册并探索')
-          .width('100%').height(52).fontSize(18).borderRadius(12).margin({ top: 15 })
+          .width('100%')
+          .height(52)
+          .fontSize(18)
+          .borderRadius(12)
+          .margin({ top: 15 })
+          .backgroundColor('#DCC9A3')
+          .border({ width: 1, color: '#D8C7A0' })
+          .shadow({ radius: 10, color: '#15000000', offsetY: 4 })
+          .fontColor('#3E3A35')
+
           .onClick(() => this.isLoginMode ? this.handleLogin() : this.handleRegister())
 
         Row() {
@@ -292,6 +332,6 @@ struct RegisterView {
       }
       .width('100%').padding(30)
     }
-    .width('100%').height('100%').backgroundColor('#FFFFFF')
+    .width('100%').height('100%').backgroundImage($r('app.media.shanshui_bg')).backgroundImageSize(ImageSize.Cover)
   }
 }

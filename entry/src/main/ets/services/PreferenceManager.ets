@@ -2,7 +2,7 @@ import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 
 export class PreferenceManager {
-  private static readonly STORE_NAME = 'UserConfig'; // 存储库名称
+  private static readonly STORE_NAME = 'UserConfig';
 
   private static async getStore(context: common.Context) {
     return await preferences.getPreferences(context, PreferenceManager.STORE_NAME);

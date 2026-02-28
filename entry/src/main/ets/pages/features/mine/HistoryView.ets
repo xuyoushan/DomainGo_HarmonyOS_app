@@ -29,15 +29,13 @@ struct HistoryView {
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      // --- 背景层：MineView 同款蓝色圆环 ---
       Circle()
         .width(400)
         .height(400)
-        .fill('#1A007DFF') // 10% 不透明度的蓝色
-        .offset({ x: -150, y: -100 }) // 位置稍微下移，避开导航栏
+        .fill('#1A007DFF')
+        .offset({ x: -150, y: -100 })
 
       Column() {
-        // --- 导航栏 ---
         Row() {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(24)
@@ -51,12 +49,11 @@ struct HistoryView {
 
           Blank()
 
-          // 更显眼的清空按钮
           Text('清空')
             .fontSize(13)
             .fontColor(Color.White)
             .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-            .backgroundColor('#FF4D4F') // 红色背景
+            .backgroundColor('#FF4D4F')
             .borderRadius(15)
             .onClick(async () => {
               this.history = [];
@@ -66,7 +63,7 @@ struct HistoryView {
         }
         .width('100%')
         .padding(16)
-        .backgroundColor(Color.Transparent) // 导航栏透明，透出背景
+        .backgroundColor(Color.Transparent)
 
         if (this.history.length === 0) {
           Column() {
@@ -81,11 +78,10 @@ struct HistoryView {
           .justifyContent(FlexAlign.Center)
           .layoutWeight(1)
         } else {
-          List({ space: 14 }) { // 增大间距，方便看到背景圆环
+          List({ space: 14 }) {
             ForEach(this.history, (item: PostItem) => {
               ListItem() {
                 Row() {
-                  // --- 修正1：显示圆形头像 ---
                   Image(item.avatar || $r('app.media.start'))
                     .width(56)
                     .height(56)
@@ -94,7 +90,6 @@ struct HistoryView {
                     .objectFit(ImageFit.Cover)
 
                   Column() {
-                    // --- 修正2：名字黑色加粗 ---
                     Text(item.userName)
                       .fontSize(17)
                       .fontWeight(FontWeight.Bold)
@@ -116,7 +111,6 @@ struct HistoryView {
                     .fontColor(['#BBBBBB'])
                 }
                 .padding(16)
-                // 背景白色半透明，能隐约透出后面的蓝色圆环
                 .backgroundColor('rgba(255, 255, 255, 0.85)')
                 .backgroundBlurStyle(BlurStyle.Thin)
                 .borderRadius(20)

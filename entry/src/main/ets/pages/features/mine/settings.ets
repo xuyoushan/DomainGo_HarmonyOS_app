@@ -90,7 +90,6 @@ struct SettingsPage {
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      // 1. 沉浸式背景：使用渐变色模拟“浮岛”底座
       Column()
         .width('100%')
         .height('100%')
@@ -100,7 +99,6 @@ struct SettingsPage {
         })
 
       Column() {
-        // 2. 现代主义非对称页眉
         Row() {
           Button({ type: ButtonType.Circle }) {
             SymbolGlyph($r('sys.symbol.chevron_left')).fontSize(24).fontColor([Color.Black])
@@ -118,7 +116,6 @@ struct SettingsPage {
 
         Scroll() {
           Column() {
-            // 标题与副标题
             Column() {
               Text('账户设置')
                 .fontSize(32)
@@ -133,7 +130,6 @@ struct SettingsPage {
             .alignItems(HorizontalAlign.Start)
             .padding({ left: 24, top: 20, bottom: 30 })
 
-            // 3. 核心交互岛：大头像居中
             if (this.isLoggedIn) {
               Column() {
                 Stack() {
@@ -160,7 +156,6 @@ struct SettingsPage {
                     LoadingProgress().width(30).height(30).color(Color.White)
                   }
 
-                  // 悬浮相机图标按钮
                   Button({ type: ButtonType.Circle }) {
                     SymbolGlyph($r('sys.symbol.camera_fill')).fontSize(16).fontColor([Color.White])
                   }
@@ -176,9 +171,7 @@ struct SettingsPage {
               .alignItems(HorizontalAlign.Center)
             }
 
-            // 4. 设置项内容岛
             Column() {
-              // 通用设置组
               this.IslandSectionTitle('应用偏好')
               Column() {
                 this.IslandToggleRow('重新播放引导动画', '开启后下次启动展示动画', this.show_guide_manual, async (isOn) => {
@@ -190,7 +183,6 @@ struct SettingsPage {
               }.IslandContainer()
 
               if (this.isLoggedIn) {
-                // 个人资料编辑组
                 this.IslandSectionTitle('身份信息')
                 Column() {
                   this.IslandInputRow('用户名', this.tempName, (v) => this.tempName = v)
@@ -198,7 +190,6 @@ struct SettingsPage {
                   this.IslandInputRow('新密码', '', (v) => this.newPassword = v, true)
                 }.IslandContainer()
 
-                // 保存按钮
                 Button('保存资料更改')
                   .width('80%')
                   .height(54)
@@ -240,7 +231,6 @@ struct SettingsPage {
                     }
                   })
 
-                // 危险区域组
                 this.IslandSectionTitle('账户安全')
                 Column() {
                   this.IslandActionRow('退出当前账号', '#182431', () => {
@@ -294,8 +284,6 @@ struct SettingsPage {
     .width('100%')
     .height('100%')
   }
-
-  // --- 浮岛风格私有 UI 组件 ---
 
   @Builder IslandSectionTitle(title: string) {
     Text(title.toUpperCase())

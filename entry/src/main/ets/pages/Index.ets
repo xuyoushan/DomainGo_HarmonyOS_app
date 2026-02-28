@@ -24,11 +24,9 @@ struct Index {
     try {
       const win = await window.getLastWindow(getContext(this));
       if (isImmersive) {
-        // 开启全屏模式：视图扩展至状态栏，并隐藏所有系统工具栏
         await win.setWindowLayoutFullScreen(true);
         await win.setWindowSystemBarEnable([]);
       } else {
-        // 恢复常规模式：视图避开状态栏，并显示系统导航栏与状态栏
         await win.setWindowLayoutFullScreen(false);
         await win.setWindowSystemBarEnable(['status', 'navigation']);
       }

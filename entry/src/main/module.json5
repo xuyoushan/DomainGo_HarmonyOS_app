@@ -96,9 +96,9 @@
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "continuable": true,
         "description": "$string:EntryAbility_desc",
-        "icon": "$media:layered_image",
+        "icon": "$media:DomainGo",
         "label": "$string:EntryAbility_label",
-        "startWindowIcon": "$media:startIcon",
+        "startWindowIcon": "$media:DomainGo",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
         "skills": [

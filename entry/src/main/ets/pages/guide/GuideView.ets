@@ -18,7 +18,6 @@ struct GuidePageEntrance {
 
 @Component
 export struct GuideView {
-  // 🔹 关键修改 1：使用 @StorageLink 实时绑定全局城市，使用 @Watch 监听切换行为
   @StorageLink('currentCity') @Watch('onCityChange') currentCity: string = '北京市';
 
   @State route: TravelRoute = {
@@ -43,27 +42,22 @@ export struct GuideView {
   private realLocation: RealLocation | null = null;
   private refreshTimer?: number;
 
-  // 🔹 关键修改 2：定义城市切换后的响应函数
   onCityChange() {
     console.info(`[Guide] 监测到城市切换至: ${this.currentCity}`);
-    this.currentIndex = 0; // 切换城市后重置进度
+    this.currentIndex = 0;
     this.matchRouteByCity();
     this.moveMapToSpot(0);
   }
 
   async aboutToAppear() {
-    // 🔹 冗余清理：不再需要手动 AppStorage.get，StorageLink 会自动同步
-    // 1. 初始化数据
     this.initializeData();
 
-    // 2. 获取一次真实定位用于打卡校验
     try {
       this.realLocation = await LocationManager.getLocation(this.context);
     } catch (e) {
       console.warn('[Guide] 定位失败', e);
     }
 
-    // 3. 启动自动刷新
     this.startAutoRefreshLocation();
   }
 
@@ -81,7 +75,6 @@ export struct GuideView {
     } else {
       this.matchRouteByCity();
     }
-    // 初始移动到当前进度点
     this.moveMapToSpot(this.currentIndex);
   }
 
@@ -103,7 +96,6 @@ export struct GuideView {
     };
 
     if (this.mapController) {
-      // 建议 zoom 设为 16 或 17，这是查看城市路网的黄金级别
       this.mapController.animateCamera(map.newCameraPosition({ target, zoom: 16.5, tilt: 45 }), 500);
     } else {
       this.mapCameraPosition.target = target;
@@ -124,14 +116,12 @@ export struct GuideView {
       this.mapController = controller;
       hilog.info(0x0000, 'MapStatus', 'MapController ready. Enabling Traffic and Layers...');
 
-      // 🔹 开启详细路网的关键开关
-      this.mapController.setTrafficEnabled(true); // 开启路况（路网颜色更丰富）
-      this.mapController.setBuildingEnabled(true); // 开启3D建筑
+      this.mapController.setTrafficEnabled(true);
+      this.mapController.setBuildingEnabled(true);
       this.mapController.setMapType(1);
       this.mapController.setMyLocationEnabled(true);
       this.refreshMapElements();
 
-      // 🔹 延迟检测：如果2秒后还是白屏，通常是鉴权失败
       setTimeout(() => {
         hilog.info(0x0000, 'MapStatus', 'If map is still blank, check SHA256 and JSON file.');
       }, 2000);
@@ -238,7 +228,6 @@ export struct GuideView {
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      // 地图层
       Column() {
         MapComponent({
           mapOptions: { position: this.mapCameraPosition },
@@ -247,7 +236,6 @@ export struct GuideView {
           .animation({ duration: 300, curve: Curve.EaseInOut })
       }.zIndex(1)
 
-      // 信息面板
       Scroll() {
         Column() {
           Column() {
@@ -313,7 +301,6 @@ export struct GuideView {
       .animation({ duration: 400, curve: Curve.FastOutSlowIn })
       .margin({ top: 220 }).padding(20).width('100%').height('100%').backgroundColor('#F7F7F7').borderRadius({ topLeft: 30, topRight: 30 })
 
-      // 顶部导航栏
       Row() {
         Button() { SymbolGlyph($r('sys.symbol.chevron_left')).fontColor(['#333']).fontSize(24) }
         .type(ButtonType.Circle).backgroundColor('#F0F0F0').width(40).height(40)

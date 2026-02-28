@@ -8,13 +8,10 @@ export struct BottomNavBar {
 
   build() {
     Row() {
-      // 0. 探索
       this.TabItem(0, '探索', $r('app.media.ic_explore'), $r('app.media.ic_explore_active'))
 
-      // 1. 圈子
       this.TabItem(1, '圈子', $r('app.media.ic_circle'), $r('app.media.ic_circle_active'))
 
-      // 2. 中间发布按钮
       Column() {
         Stack() {
           Circle()
@@ -36,15 +33,13 @@ export struct BottomNavBar {
           }
           router.pushUrl({ url: 'pages/circle/PostDynamicView' })
         })
-        .margin({ bottom: 20 }) // 向上悬浮效果
+        .margin({ bottom: 20 })
       }
       .layoutWeight(1)
       .justifyContent(FlexAlign.Center)
 
-      // 3. 导览
       this.TabItem(3, '导览', $r('app.media.ic_guide'), $r('app.media.ic_guide_active'))
 
-      // 4. 我的
       this.TabItem(4, '我的', $r('app.media.ic_mine'), $r('app.media.ic_mine_active'))
     }
     .width('100%')

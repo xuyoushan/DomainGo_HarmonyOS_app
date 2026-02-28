@@ -13,7 +13,6 @@ export struct MineView {
   @StorageLink('userAvatar') userAvatar: string = '';
   @StorageLink('currentUserId') userId: string = '';
 
-  // 统一的登录拦截方法
   checkLoginAndExecute(action: () => void) {
     if (!this.isLoggedIn) {
       promptAction.showToast({ message: '请先登录探索更多精彩' });
@@ -26,7 +25,6 @@ export struct MineView {
   build() {
     Column() {
       if (!this.isLoggedIn) {
-        // --- 未登录状态 ---
         Stack({ alignContent: Alignment.Center }) {
           Circle()
             .width(400)
@@ -113,10 +111,6 @@ export struct MineView {
             }
             .width('92%')
             .margin({ top: -40 })
-
-            if (this.history.length > 0) {
-              this.SectionTitle('最近浏览', '查看全部 >')
-            }
 
             this.SectionTitle('我的勋章', '全部勋章 >')
             this.BadgeWall()
@@ -211,7 +205,6 @@ export struct MineView {
         SymbolGlyph(icon).fontSize(18).fontColor([iconColor])
       }
       Text(title).fontSize(16).margin({ left: 12 }).layoutWeight(1).fontColor('#333333')
-      // 只有显式传入 badge 且有内容时才显示
       if (badge && badge !== '0') {
         Text(badge).fontSize(14).fontColor('#999999').margin({ right: 8 })
       }
@@ -231,9 +224,7 @@ export struct MineView {
     .width('92%')
     .margin({ top: 30, bottom: 16 })
     .onClick(() => {
-      if (title === '最近浏览') {
-        router.pushUrl({ url: 'pages/features/mine/HistoryView' })
-      } else if (title === '我的勋章') {
+      if (title === '我的勋章') {
         router.pushUrl({ url: 'pages/features/mine/BadgeView' })
           .catch(() => promptAction.showToast({ message: '勋章页面未注册' }))
       }

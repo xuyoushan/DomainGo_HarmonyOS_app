@@ -3,7 +3,7 @@ import { common } from '@kit.AbilityKit';
 import http from '@ohos.net.http';
 import { WeatherWidget } from '../../components/Explore/Weather';
 import { PROVINCE_CITY_DATA } from '../../models/CityData';
-import { CITY_BANNER_CONFIG, CityBanner, getBannerByCity } from '../../models/CityBannerData';
+import { CityBanner, getBannerByCity } from '../../models/CityBannerData';
 import { promptAction, router, display } from '@kit.ArkUI';
 import { CITY_ROUTES, TravelRoute } from '../../models/RouteData';
 import { CITY_EXPLORE_MAP, DEFAULT_EXPLORE_DATA, CityExploreConfig } from '../../models/CityKey';
@@ -123,12 +123,13 @@ export struct ExploreView {
     setTimeout(() => { if (!isFinished) { isFinished = true; } }, 5000);
 
     let httpRequest = http.createHttp();
-    const url = `http://192.168.10.105:5000/get_news/${encodeURIComponent(this.currentCity)}`;
+    const url = `https://domaingo-script-xspvlwqrjf.cn-hangzhou.fcapp.run?city=${encodeURIComponent(this.currentCity)}`;
+
 
     try {
       let response = await httpRequest.request(url, {
         method: http.RequestMethod.GET,
-        connectTimeout: 6000,
+        connectTimeout: 10000,
         expectDataType: http.HttpDataType.OBJECT
       });
       const res = response.result as MyNewsResponse;

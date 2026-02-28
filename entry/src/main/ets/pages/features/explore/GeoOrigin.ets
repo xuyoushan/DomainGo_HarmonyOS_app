@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { http } from '@kit.NetworkKit'; // 导入原生网络库
+import { http } from '@kit.NetworkKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { GEO_ORIGIN_DATA, CityStory, DistrictStory } from '../../../models/DistrictStoryData';
 
@@ -30,13 +30,11 @@ struct GeoOriginNewView {
   @State selectedDistrict: DistrictStory | null = null;
   @State isShowDetail: boolean = false;
 
-  /* ========= AI 面板 ========= */
   @State aiChats: AIChatItem[] = []
   @State showAI: boolean = false;
   @State aiQuery: string = '';
   @State aiLoading: boolean = false;
 
-  /* ========= 偏历史色板 ========= */
   private bgDeep = '#3A352F';
   private accentAmber = '#C9A25D';
   private cardBg = 'rgba(255,255,255,0.05)';
@@ -61,7 +59,6 @@ struct GeoOriginNewView {
     return `你是一位中国历史地名与地方志研究专家。【研究背景】城市：${city}，地名：${district || '未指定'}。【回答要求】1. 使用正式、克制、偏史料的语气 2. 优先从历史沿革、名称来源、行政变迁角度解释 3. 如存在多种说法，请说明“其一 / 其二” 4. 不要使用口语，不要编造具体年代 5. 字数控制在 200 字以内。【用户问题】${userQuestion}`;
   }
 
-  /* ================= 调用 智谱 GLM API ================= */
   private async callAI(question: string) {
     if (!question) return;
 
@@ -83,7 +80,7 @@ struct GeoOriginNewView {
     try {
       const response = await httpRequest.request(
         'http://localhost:3000/api/chat', // 模拟机
-        // 'http://192.168.10.107:3000/api/chat' //真机
+        // 'http://192.168.10.105:3000/api/chat' //真机
         {
           method: http.RequestMethod.POST,
           header: {
@@ -143,7 +140,6 @@ struct GeoOriginNewView {
 
   build() {
     Stack() {
-      /* ========= 背景 ========= */
       Stack() {
         Circle().width(420).height(420).fill('#6B6459').blur(140).position({ x: -120, y: -80 })
         Circle().width(360).height(360).fill('#8A7A5E').blur(120).position({ x: '55%', y: '35%' })
@@ -152,7 +148,6 @@ struct GeoOriginNewView {
       .height('100%')
       .backgroundColor(this.bgDeep)
 
-      /* ========= 主体 ========= */
       Column() {
         this.ModernNav()
 
@@ -170,13 +165,10 @@ struct GeoOriginNewView {
       .opacity(this.isShowDetail || this.showAI ? 0.35 : 1)
       .scale(this.isShowDetail || this.showAI ? { x: 0.98, y: 0.98 } : { x: 1, y: 1 })
 
-      /* ========= 详情页 ========= */
       if (this.isShowDetail && this.selectedDistrict) this.SmartDetailOverlay()
 
-      /* ========= AI 面板 ========= */
       if (this.showAI) {
         Stack({ alignContent: Alignment.Bottom }) {
-          // 遮罩
           Column()
             .width('100%')
             .height('100%')
@@ -196,7 +188,6 @@ struct GeoOriginNewView {
     .height('100%')
   }
 
-  /* ================= 顶部导航 ================= */
   @Builder ModernNav() {
     Row() {
       SymbolGlyph($r('sys.symbol.chevron_left'))
@@ -229,7 +220,6 @@ struct GeoOriginNewView {
   @Builder
   AIPanel() {
     Column() {
-      /* ===== 顶部栏 ===== */
       Row() {
         Text('AI 地名档案')
           .fontSize(18)
@@ -250,7 +240,6 @@ struct GeoOriginNewView {
       .backgroundColor(this.paperBg)
       .borderRadius({ topLeft: 18, topRight: 18 })
 
-      /* ===== 对话区 ===== */
       Scroll(this.aiScroller) {
         Column({ space: 14 }) {
           ForEach(this.aiChats, (item: AIChatItem) => {
@@ -268,7 +257,6 @@ struct GeoOriginNewView {
               } else {
                 Blank()
                 Column() {
-                  // ⭐ 修正显示逻辑：微信聊天式体验，只看简短问题
                   Text(item.display ?? item.content)
                     .fontSize(15)
                     .lineHeight(24)
@@ -283,7 +271,6 @@ struct GeoOriginNewView {
 
           if (this.aiLoading) {
             Row({ space: 8 }) {
-              // ⭐ 添加转圈圈动画
               LoadingProgress().width(24).height(24).color(this.accentAmber)
               Text('正在查阅地方志…')
                 .fontSize(13)
@@ -297,7 +284,6 @@ struct GeoOriginNewView {
       .layoutWeight(1)
       .backgroundColor(this.paperBg)
 
-      /* ===== 输入区 ===== */
       Row({ space: 10 }) {
         TextInput({ text: this.aiQuery, placeholder: '询问地名沿革…' })
           .layoutWeight(1)
@@ -305,7 +291,7 @@ struct GeoOriginNewView {
           .backgroundColor('rgba(255,255,255,0.12)')
           .fontColor(Color.White)
           .placeholderColor('rgba(255,255,255,0.35)')
-          .enterKeyType(EnterKeyType.Send) // ⭐ 软键盘改为发送键反馈
+          .enterKeyType(EnterKeyType.Send)
           .onChange(v => this.aiQuery = v)
           .onSubmit(() => {
             if (this.aiQuery.trim()) this.callAI(this.aiQuery.trim());
@@ -330,7 +316,6 @@ struct GeoOriginNewView {
   }
 
 
-  /* ================= 城市头部 ================= */
   @Builder
   CityHeroHeader() {
     Column() {
@@ -365,25 +350,21 @@ struct GeoOriginNewView {
     .padding({ left: 24, top: 30, right: 24 })
   }
 
-  /* ================= 卡片 ================= */
   @Builder
   ArtisticCard(item: DistrictStory, index: number) {
     Column({ space: 14 }) {
-      /* 档案编号（弱存在） */
       Text(`地名条目 ${index + 1}`)
         .fontSize(11)
         .fontColor('rgba(255,255,255,0.35)')
         .letterSpacing(2)
 
-      /* 地名 —— 主视觉 */
       Text(item.name)
-        .fontSize(index % 3 == 0 ? 34 : 28) // 🔥 明显放大
+        .fontSize(index % 3 == 0 ? 34 : 28)
         .fontWeight(FontWeight.Bolder)
         .fontColor('rgba(255,255,255,0.92)')
         .letterSpacing(2)
         .maxLines(2)
 
-      /* 注释 / 别称 / 概述 */
       Text(item.slogan)
         .fontSize(14)
         .fontColor(this.accentAmber)
@@ -393,14 +374,13 @@ struct GeoOriginNewView {
 
       Blank()
 
-      /* 底部细线，像书页分隔 */
       Rect()
         .width(40)
         .height(1)
         .fill('rgba(255,255,255,0.18)')
     }
     .width(index % 3 == 0 ? '100%' : '48%')
-    .height(index % 3 == 0 ? 200 : 220) // 🔥 内容高度同步加大
+    .height(index % 3 == 0 ? 200 : 220)
     .padding(24)
     .margin({ bottom: 18 })
     .backgroundColor(this.cardBg)
@@ -412,7 +392,6 @@ struct GeoOriginNewView {
     .justifyContent(FlexAlign.Start)
     .onClick(() => {
       this.selectedDistrict = item;
-      // 自动在 AI 面板加入地名上下文
       this.aiChats.push({
         role: 'assistant',
         content: `已进入【${item.name}】地名档案，可继续询问其沿革。`
@@ -427,11 +406,9 @@ struct GeoOriginNewView {
     })
   }
 
-  /* ================= 详情覆盖层 ================= */
   @Builder
   SmartDetailOverlay() {
     Stack({ alignContent: Alignment.Bottom }) {
-      /* 背景压暗 */
       Column()
         .width('100%')
         .height('100%')
@@ -445,9 +422,7 @@ struct GeoOriginNewView {
           )
         })
 
-      /* 文献页 */
       Column() {
-        /* 纸页顶部装订感 */
         Rect()
           .width(60)
           .height(4)
@@ -457,7 +432,6 @@ struct GeoOriginNewView {
 
         Scroll() {
           Column({ space: 30 }) {
-            /* 标题区 */
             Column({ space: 12 }) {
               Text(this.selectedDistrict?.name)
                 .fontSize(42)
@@ -476,7 +450,6 @@ struct GeoOriginNewView {
                 .fill(this.accentAmber)
             }
 
-            /* 正文 */
             Text(
               `${this.selectedDistrict?.origin ?? ''}\n\n${this.selectedDistrict?.history ?? ''}`
             )
@@ -485,7 +458,6 @@ struct GeoOriginNewView {
               .lineHeight(30)
               .letterSpacing(1)
 
-            /* 注记 */
             Text('—— 摘录自地方志与历史文献')
               .fontSize(12)
               .fontColor('rgba(255,255,255,0.35)')
@@ -501,7 +473,6 @@ struct GeoOriginNewView {
     }
   }
 
-  /* ================= 正文区块 ================= */
   @Builder
   DetailSection(title: string, content: string | undefined) {
     Column({ space: 16 }) {

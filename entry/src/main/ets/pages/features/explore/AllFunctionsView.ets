@@ -68,14 +68,12 @@ struct AllFunctionsView {
             // --- 3. 功能区布局 ---
             Column({ space: 28 }) {
 
-              // ===== 文旅精选（原有）=====
               this.FunctionCard('文旅精选', '玩转城市 · 精选推荐', [
                 { name: '休闲娱乐', icon: $r('sys.symbol.play_video_fill'), color: '#2F80ED' },
                 { name: '酒店住宿', icon: $r('sys.symbol.bed_double_fill'), color: '#45B7D1' },
                 { name: '交通出行', icon: $r('sys.symbol.car_fill'), color: '#5AC8FA' }
               ])
 
-              // ===== 政务助手（原有）=====
               this.FunctionCard('政务助手', '官方数据 · 权威查询', [
                 { name: '行政隶属', icon: $r('sys.symbol.map_badge_cloud_slash_fill'), color: '#4568DC' },
                 { name: '邮编查询', icon: $r('sys.symbol.envelope_fill'), color: '#B06AB3' },
@@ -83,14 +81,12 @@ struct AllFunctionsView {
                 { name: '人口数据', icon: $r('sys.symbol.person_3_fill'), color: '#6FCF97' }
               ])
 
-              // ===== 新增：行程与记录 =====
               this.FunctionCard('行程与记录', '出行规划与个人记录', [
                 { name: '寻域锦囊', icon: $r('sys.symbol.briefcase_fill'), color: '#FF9500' },
                 { name: '灵感笔记', icon: $r('sys.symbol.square_and_pencil'), color: '#FAB1A0' },
                 { name: '行程安排', icon: $r('sys.symbol.calendar_001_fill'), color: '#9B51E0' }
               ])
 
-              // ===== 更多功能（原有，占位）=====
               this.FunctionCard('更多功能', '持续更新中', [
                 { name: '敬请期待', icon: $r('sys.symbol.plus_circle_fill'), color: '#BDBDBD' }
               ])
@@ -106,7 +102,6 @@ struct AllFunctionsView {
     .height('100%')
   }
 
-  // --- FunctionCard 组件：完全未改 ---
   @Builder FunctionCard(title: string, subTitle: string, items: FunctionItem[]) {
     Column() {
       Row() {
@@ -161,7 +156,6 @@ struct AllFunctionsView {
               return;
             }
 
-            // 1. 文旅类跳转
             const travelFunctions = ['门票预订', '酒店住宿', '交通出行'];
             if (travelFunctions.includes(item.name)) {
               router.pushUrl({
@@ -171,7 +165,6 @@ struct AllFunctionsView {
               return;
             }
 
-            // 2. 政务类跳转
             const govFunctions = ['行政隶属', '邮编查询', '区号查询', '人口数据'];
             if (govFunctions.includes(item.name)) {
               router.pushUrl({
@@ -181,22 +174,21 @@ struct AllFunctionsView {
               return;
             }
 
-            // 3. 通用功能跳转
             const pageMap: Record<string, string> = {
               '寻域锦囊': 'pages/features/AllFunctions/CityToolkitView',
               '灵感笔记': 'pages/features/AllFunctions/NoteView',
               '行程安排': 'pages/features/AllFunctions/ScheduleView',
             };
 
-            const url = pageMap[item.name]; // 修正：使用当前点击项的名字
+            const url = pageMap[item.name];
             if (url) {
               router.pushUrl({
                 url: url,
                 params: {
                   title: item.name,
                   cityName: this.currentCity,
-                  color: item.color, // 修正：明确 initializer
-                  icon: item.icon    // 修正：明确 initializer
+                  color: item.color,
+                  icon: item.icon
                 }
               });
             } else {

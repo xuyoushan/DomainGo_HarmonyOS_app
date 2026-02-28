@@ -8,15 +8,13 @@ struct MessageCenterView {
   @StorageLink('unreadMessages') unreadMessages: MessageNotification[] = [];
   @StorageLink('currentUserId') currentUserId: string = '';
 
-  // 新增：用于分类显示的过滤状态
-  @State selectedCategoryIndex: number = -1; // -1 表示显示全部
+  @State selectedCategoryIndex: number = -1;
   @State filterTypeMap: string[][] = [
-    ['like', 'collect'], // 获誉/收藏
-    ['follow'],         // 知音/追随
-    ['comment']          // 评论
+    ['like', 'collect'],
+    ['follow'],
+    ['comment']
   ];
 
-  // 动态获取当前显示的列表内容
   getFilteredMessages(): MessageNotification[] {
     if (this.selectedCategoryIndex === -1) {
       return [];
@@ -62,7 +60,6 @@ struct MessageCenterView {
 
   build() {
     Column() {
-      // --- 顶部导航栏 ---
       Row() {
         Button() {
           SymbolGlyph($r('sys.symbol.chevron_left'))
@@ -95,7 +92,6 @@ struct MessageCenterView {
       .padding({ left: 20, right: 20, top: 45, bottom: 20 })
       .backgroundColor('#FAF9F7')
 
-      // --- 分类功能区：支持点击切换 ---
       Row() {
         this.CategoryItem(0, $r('sys.symbol.heart_fill'), '#B22222', '获誉/收藏', ['like', 'collect'])
         this.CategoryItem(1, $r('sys.symbol.person_2_fill'), '#C0A47E', '知音/追随', ['follow'])
@@ -271,11 +267,10 @@ struct MessageCenterView {
             .fontColor([this.selectedCategoryIndex === idx ? Color.White : color])
         }
         .width(54).height(54)
-        // 选中时背景变色
         .backgroundColor(this.selectedCategoryIndex === idx ? color : '#F7F8FA')
         .borderRadius(16)
         .justifyContent(FlexAlign.Center)
-        .animation({ duration: 200 }) // 增加简单动效
+        .animation({ duration: 200 })
 
         if (this.getUnreadCount(types) > 0) {
           Text(this.getUnreadCount(types) > 99 ? '99+' : this.getUnreadCount(types).toString())

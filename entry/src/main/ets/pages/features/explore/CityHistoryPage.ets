@@ -1,4 +1,3 @@
-// pages/CityHistoryPage.ets
 import { CITY_EXPLORE_MAP, HistoryNode } from '../../../models/HistoryData'
 import { StarChartProvider, StarDust, VisualNode } from '../../../services/StarChartUtils'
 import vibrator from '@ohos.vibrator';
@@ -11,7 +10,6 @@ struct CityHistoryPage {
 
   @State historyNodes: VisualNode[] = []
   @State starDusts: StarDust[] = []
-  // [优化] 使用 StorageLink 自动同步 ExploreView 传来的城市名，无需手动 initLocation
   @StorageLink('currentCity') currentCity: string = '定位中...'
   @State canvasWidth: number = 0
   @State canvasHeight: number = 1800
@@ -33,7 +31,6 @@ struct CityHistoryPage {
     if (this.timerId !== -1) clearInterval(this.timerId);
   }
 
-  // 统一数据初始化入口
   initUniverse() {
     const cityName = this.currentCity.replace('市', '');
     const rawData = CITY_EXPLORE_MAP[cityName];
@@ -54,7 +51,6 @@ struct CityHistoryPage {
       if (this.timerId !== -1) clearInterval(this.timerId);
       this.startAnimation();
     } else {
-      // 无数据时执行清理，停止动画并清空画布
       this.historyNodes = [];
       this.starDusts = [];
       if (this.timerId !== -1) clearInterval(this.timerId);
@@ -73,7 +69,6 @@ struct CityHistoryPage {
   drawAll() {
     this.context.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
 
-    // 绘制中央虚线
     this.context.setLineDash([15, 30]);
     this.context.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     this.context.beginPath();
@@ -82,7 +77,6 @@ struct CityHistoryPage {
     this.context.stroke();
     this.context.setLineDash([]);
 
-    // 绘制时空经纬网背景
     this.context.beginPath();
     this.context.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     this.context.lineWidth = 0.5;
@@ -94,7 +88,6 @@ struct CityHistoryPage {
     }
     this.context.stroke();
 
-    // 绘制粒子
     this.starDusts.forEach(dust => {
       dust.x += dust.vx; dust.y += dust.vy;
       this.context.fillStyle = `rgba(255, 255, 255, ${dust.opacity})`;
@@ -168,7 +161,6 @@ struct CityHistoryPage {
       Image($r('app.media.paper_bg')).width('100%').height('100%').objectFit(ImageFit.Cover).blur(25)
 
       Column() {
-        // [任务1] 保持原逻辑判定标题，绝不省略
         Text(this.currentCity === "定位中..." ? "寻找时空锚点..." : `${this.currentCity} · 历史长卷`)
           .fontSize(22)
           .fontWeight(FontWeight.Bold)
@@ -181,20 +173,19 @@ struct CityHistoryPage {
       .linearGradient({ angle: 180, colors: [['rgba(0,0,0,0.7)', 0], ['transparent', 1]] })
       .zIndex(10)
 
-      // [任务3] 图标颜色加深：0.2->0.5，文字颜色加深：0.8/0.4->1.0/0.6
       if (!CITY_EXPLORE_MAP[this.currentCity.replace('市', '')] && this.currentCity !== "定位中...") {
         Column({ space: 20 }) {
           SymbolGlyph($r('sys.symbol.map_badge_cloud_slash_fill'))
             .fontSize(72)
-            .fontColor(['rgba(255,255,255,0.6)']) // 颜色加深
+            .fontColor(['rgba(255,255,255,0.6)'])
 
           Column({ space: 8 }) {
             Text("尚未开启城市长卷")
-              .fontColor('rgba(255,255,255,1.1)') // 颜色加深
+              .fontColor('rgba(255,255,255,1.1)')
               .fontSize(20)
               .fontWeight(FontWeight.Medium)
             Text("我们会尽快收录该地区的历史足迹")
-              .fontColor('rgba(255,255,255,1.0)') // 颜色加深
+              .fontColor('rgba(255,255,255,1.0)')
               .fontSize(14)
           }
         }
@@ -252,12 +243,10 @@ struct CityHistoryPage {
     .width('100%')
     .height('100%')
     .backgroundColor('#0A0E1A')
-    // 在 build() 里的 .onAreaChange 修改
     .onAreaChange((old, newValue) => {
       const newWidth = newValue.width as number;
       if (old.width !== newWidth) {
         this.canvasWidth = newWidth;
-        // 🔹 新增：宽度确定后，如果当前有城市数据但还没加载，手动触发初始化
         if (newWidth > 0 && this.historyNodes.length === 0) {
           this.initUniverse();
         }

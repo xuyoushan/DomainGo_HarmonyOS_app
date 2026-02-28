@@ -40,7 +40,6 @@ export interface ScenicSpot {
 export class AmapSpotService {
   private static readonly API_KEY = 'd4552bc3e20af2857f9cfd5ac95ded1d';
 
-  // 🔹 场馆已单独适配的“超大城市”
   private static readonly VENUE_EXCLUDED_CITIES = [
     '北京',
     '天津',
@@ -61,7 +60,6 @@ export class AmapSpotService {
 
   static async fetchSpots(city: string): Promise<ScenicSpot[]> {
     const key = AmapSpotService.API_KEY;
-    // 🔹 优化1：扩充搜索类型，增加 110000(风景名胜) 和 140000(文化场馆)
     const keywords = encodeURIComponent('景区|地标|公园|博物馆');
     const types = '110000|140000';
 
@@ -84,34 +82,28 @@ export class AmapSpotService {
       result.pois.forEach((poi) => {
         const name = poi.name || '';
 
-        // 🔹 优化2：核心地标具有“最高豁免权”，不参与任何黑名单过滤
         if (coreRegex && coreRegex.test(name)) {
           finalPois.push(poi);
           return;
         }
 
-        // 🔹 优化3：黑名单逻辑精准化。
-        // 只排除单纯的设施，如果名字里包含“景区”或“公园”则保留（防止误杀“XX公园售票处”这种唯一的入口点）
         const isInfrastructure = /(停车场|厕所|出入口|服务区|码头|站)$/.test(name);
         if (isInfrastructure) return;
 
         const rating = parseFloat(poi.biz_ext?.rating || '0');
         const photos = poi.photos || [];
 
-        // 🔹 优化4：放宽门槛，只要有图或者评分及格（>3.5）就收录
         if (rating > 3.5 || photos.length > 0) {
           finalPois.push(poi);
         }
       });
 
-      // 🔹 优化5：去重排序，确保核心地标排在最前面
       const uniquePois = Array.from(new Set(finalPois));
 
       return uniquePois.map((poi): ScenicSpot => {
         const photos = poi.photos || [];
         let image = '';
         if (photos.length > 0) {
-          // 这里的策略很好：取中间的图通常比第一张门口图好看
           const index = Math.floor(photos.length / 2);
           image = photos[index]?.url || photos[0].url;
         }
@@ -121,7 +113,7 @@ export class AmapSpotService {
         return {
           id: poi.id,
           name: poi.name,
-          image: image.replace('http:', 'https:'), // 补全安全协议
+          image: image.replace('http:', 'https:'),
           rating: poi.biz_ext?.rating || '4.0',
           price: (costValue === '[]' || !costValue) ? '0' : costValue,
           isFree: parseInt(costValue) === 0 || costValue === '' || costValue === '[]',

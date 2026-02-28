@@ -112,8 +112,6 @@ struct PostDetailView {
       likeUserIds: p.likeUserIds || [],
       collectUserIds: p.collectUserIds || [],
       likeCount: (p.likeUserIds || []).length,
-      // isLiked: (p.likeUserIds || []).indexOf(this.currentUserId) !== -1,
-      // isCollected: (p.collectUserIds || []).indexOf(this.currentUserId) !== -1,
       isLiked: (p.likeUserIds || []).includes(this.currentUserId),
       isCollected: (p.collectUserIds || []).includes(this.currentUserId)
     };
@@ -312,7 +310,6 @@ struct PostDetailView {
             })
               .height(40)
               .width(40)
-              // .backgroundColor('#00FFFFFF')
               .fontColor('#333333')
               .onClick(async (event: ClickEvent, result: SaveButtonOnClickResult) => {
                 if (result === SaveButtonOnClickResult.SUCCESS) {

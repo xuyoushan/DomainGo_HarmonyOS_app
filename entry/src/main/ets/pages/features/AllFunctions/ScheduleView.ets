@@ -5,17 +5,16 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import preferences from '@ohos.data.preferences';
 import http from '@ohos.net.http';
 import { formProvider, formBindingData } from '@kit.FormKit';
-import { photoAccessHelper } from '@kit.MediaLibraryKit'; // 新增：相册选择器
+import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { LocationManager } from '../../../services/LocationManager';
 
-// --- 1. 定义日程接口：增加截图凭证字段 ---
 interface MySchedule {
   id: string;
   title: string;
   location: string;
   description: string;
   date: Date;
-  evidenceImage?: string; // ✅ 新增：存储截图的路径
+  evidenceImage?: string;
 }
 
 interface AmapPoi { name: string; address: string; }
@@ -30,10 +29,9 @@ struct TravelScheduleView {
   @State selectedDate: Date = new Date();
   @State isSubmitting: boolean = false;
 
-  // --- 新增：截图管理状态 ---
-  @State evidenceImage: string = ''; // 当前编辑中的截图路径
-  @State showFullImage: boolean = false; // 全屏预览控制
-  @State previewImageUrl: string = ''; // 预览图地址
+  @State evidenceImage: string = '';
+  @State showFullImage: boolean = false;
+  @State previewImageUrl: string = '';
 
   @State localSchedules: MySchedule[] = [];
   @State isManageMode: boolean = false;
@@ -50,11 +48,9 @@ struct TravelScheduleView {
   async aboutToAppear() {
     const params = router.getParams() as Record<string, string>;
     if (params && params.presetTitle) {
-      // ✅ 2. 自动填充与截图关联逻辑
       this.eventTitle = params.presetTitle;
       this.eventLocation = params.presetLocation;
       this.eventDescription = params.presetDesc;
-      // 捕获从 WebView 传过来的自动截图
       if (params.evidenceImage) {
         this.evidenceImage = params.evidenceImage;
       }
@@ -65,7 +61,6 @@ struct TravelScheduleView {
     await this.initPreferences();
   }
 
-  // --- 新增：系统相册联动（PhotoPicker） ---
   async selectImageFromAlbum() {
     try {
       const photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
@@ -96,7 +91,7 @@ struct TravelScheduleView {
         location: item.location,
         description: item.description,
         date: new Date(item.date),
-        evidenceImage: item.evidenceImage // ✅ 恢复图片路径
+        evidenceImage: item.evidenceImage
       };
       processedList.push(schedule);
     }
@@ -151,7 +146,7 @@ struct TravelScheduleView {
       location: this.eventLocation,
       description: this.eventDescription,
       date: this.selectedDate,
-      evidenceImage: this.evidenceImage // ✅ 保存截图
+      evidenceImage: this.evidenceImage
     };
     if (this.editingId) {
       const index = this.localSchedules.findIndex(s => s.id === this.editingId);
@@ -195,7 +190,7 @@ struct TravelScheduleView {
     this.eventDescription = '';
     this.editingId = null;
     this.selectedDate = new Date();
-    this.evidenceImage = ''; // ✅ 重置截图
+    this.evidenceImage = '';
   }
 
   private async doWriteCalendar() {
@@ -224,7 +219,6 @@ struct TravelScheduleView {
   build() {
     Stack() {
       Column() {
-        // --- 页头 ---
         Row() {
           SymbolGlyph($r('sys.symbol.chevron_left')).fontSize(24)
             .onClick(() => {
@@ -256,7 +250,7 @@ struct TravelScheduleView {
           Scroll() {
             Column({ space: 20 }) {
               this.FormCard()
-              this.EvidenceUploadCard() // ✅ 新增：上传凭证卡片
+              this.EvidenceUploadCard()
               this.TipsCard()
 
               Button() {
@@ -273,7 +267,6 @@ struct TravelScheduleView {
         }
       }.width('100%').height('100%').backgroundColor('#F2F3F5')
 
-      // ✅ 3. 全屏大图预览层
       if (this.showFullImage) {
         Stack() {
           Rect().width('100%').height('100%').fill(Color.Black).opacity(0.95)
@@ -321,10 +314,8 @@ struct TravelScheduleView {
     .padding(16).backgroundColor(Color.White).borderRadius(16).alignItems(HorizontalAlign.Start)
   }
 
-  // ✅ 新增：凭证上传编辑卡片
   @Builder EvidenceUploadCard() {
     Column({ space: 10 }) {
-      // ✅ 修改点 1：动态标题
       this.InputLabel(this.eventTitle ? '预约凭证 (进门核验用)' : '行程附件')
 
       if (this.evidenceImage) {
@@ -343,7 +334,6 @@ struct TravelScheduleView {
         Row() {
           SymbolGlyph($r('sys.symbol.plus_square_fill')).fontSize(30).fontColor(['#999'])
 
-          // ✅ 修改点 2：动态提示文字
           Text(this.eventTitle ? '点击上传预约成功截图' : '点击上传相关图片或凭证')
             .fontColor('#999').margin({ left: 10 })
         }
@@ -369,7 +359,6 @@ struct TravelScheduleView {
         Text(item.date.toLocaleDateString()).fontSize(10).fontColor('#999')
       }.layoutWeight(1).alignItems(HorizontalAlign.Start).margin({ left: 10 })
 
-      // ✅ 4. 卡片右侧显示缩略图，点击可放大
       if (item.evidenceImage) {
         Image(item.evidenceImage)
           .width(50).height(50).borderRadius(6).margin({ right: 10 })

@@ -7,15 +7,12 @@ struct TraceDetailView {
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      // 1. 底层：沉浸式地图
       Image($r('app.media.map_china_tech'))
         .width('100%')
         .height('100%')
         .objectFit(ImageFit.Cover)
 
-      // 2. 顶层内容
       Column() {
-        // 自定义导航栏：增加背景渐变确保返回键清晰
         Row() {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(28)
@@ -29,7 +26,7 @@ struct TraceDetailView {
             .fontWeight(FontWeight.Bold)
             .fontColor('#FFFFFF')
             .margin({ left: 15 })
-            .textShadow({ radius: 5, color: '#FF000000' }) // 增加文字阴影
+            .textShadow({ radius: 5, color: '#FF000000' })
 
           Blank()
         }
@@ -42,10 +39,8 @@ struct TraceDetailView {
 
         Scroll(this.scroller) {
           Column() {
-            // A. 探索成就卡片 (已增强对比度)
             this.AchievementCard()
 
-            // B. 时光足迹流 (已增强对比度)
             this.TimeLineSection()
           }
           .width('100%')
@@ -60,7 +55,6 @@ struct TraceDetailView {
     .height('100%')
   }
 
-  // A. 增强版成就卡片
   @Builder
   AchievementCard() {
     Column() {
@@ -122,14 +116,12 @@ struct TraceDetailView {
 
       ForEach([1, 2, 3], (item: number) => {
         Row() {
-          // 时间轴线
           Column() {
             Circle({ width: 12, height: 12 }).fill('#007DFF')
             Rect({ width: 2, height: 120 }).fill('#40FFFFFF')
           }
           .margin({ right: 15 })
 
-          // 增强版足迹卡片
           Column() {
             Text('2025年12月' + item + '日')
               .fontSize(14)
@@ -141,7 +133,6 @@ struct TraceDetailView {
               .fontColor('#FFFFFF')
               .margin({ top: 8 })
 
-            // 占位图区
             Rect()
               .width('100%')
               .height(100)

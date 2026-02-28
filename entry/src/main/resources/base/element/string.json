@@ -2,7 +2,7 @@
   "string": [
     {
       "name": "app_name",
-      "value": "DomainGo"
+      "value": "寻域"
     },
     {
       "name": "module_desc",
@@ -14,7 +14,7 @@
     },
     {
       "name": "EntryAbility_label",
-      "value": "DomainGo"
+      "value": "寻域"
     },
     {
       "name": "location_reason",

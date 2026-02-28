@@ -18,7 +18,7 @@ struct CityToolkitView {
   @State rotation: number = 0;
   @State isLoading: boolean = false;
   @State isSpeaking: boolean = false;
-  @State isTtsReady: boolean = false; // 增加状态位
+  @State isTtsReady: boolean = false;
 
   private ttsEngine?: textToSpeech.TextToSpeechEngine;
   private readonly AI_TOKEN = '82e4d46a05264dd19a27e1d91b30dce6.UNpMhFWNznhFSPLo';
@@ -66,8 +66,8 @@ struct CityToolkitView {
         online: 1,
         extraParams: {
           "style": 'gentle',
-          "speed": 0.8, // 这里的 0.8 代表沉稳
-          "pitch": 0.7  // 这里的 0.7 代表深沉
+          "speed": 0.8,
+          "pitch": 0.7
         }
       };
       this.ttsEngine = await textToSpeech.createEngine(initParamsInfo);
@@ -107,7 +107,7 @@ struct CityToolkitView {
 
     this.isLoading = false;
     this.showSurprise(msg);
-    this.speak(msg); // 弹窗的同时开始严肃播报
+    this.speak(msg);
   }
 
   async fetchAIWisdom(type: string, keys: string[]): Promise<string> {
@@ -134,7 +134,7 @@ struct CityToolkitView {
         extraData: {
           model: 'glm-4-flash',
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.95 // 增加随机性，让 AI 别那么正经
+          temperature: 0.95
         }
       });
       const res = JSON.parse(response.result as string) as AIResult;
@@ -172,9 +172,7 @@ struct CityToolkitView {
           }
         }.width('100%').padding(20)
 
-        // 升级版：带动态光晕的锦囊
         Stack() {
-          // 外部呼吸光晕
           Circle({ width: 220, height: 220 })
             .fill(Color.Transparent)
             .stroke('#007DFF')
@@ -190,7 +188,7 @@ struct CityToolkitView {
           Image($r('app.media.start'))
             .width(180).height(180).clip(new Circle({ width: 180, height: 180 }))
             .rotate({ angle: this.rotation })
-            .grayscale(this.isLoading ? 0.8 : 0) // 加载时变灰增加高级感
+            .grayscale(this.isLoading ? 0.8 : 0)
             .animation({ duration: 2500, curve: Curve.EaseInOut })
 
           Text('SECRET')

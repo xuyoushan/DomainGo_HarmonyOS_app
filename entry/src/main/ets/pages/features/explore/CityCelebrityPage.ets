@@ -40,12 +40,10 @@ struct CityPeoplePage {
   }
 
   pageTransition() {
-    // 进入页面：从右侧滑入并淡入
     PageTransitionEnter({ duration: 888, curve: Curve.FastOutSlowIn })
       .slide(SlideEffect.Right)
       .opacity(0)
 
-    // 退出页面：向左侧滑出并淡出
     PageTransitionExit({ duration: 888, curve: Curve.FastOutSlowIn })
       .slide(SlideEffect.Left)
       .opacity(0)
@@ -59,7 +57,7 @@ struct CityPeoplePage {
           Span(word)
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
-            .fontColor('#1A1A1A') // 关键词加粗加黑
+            .fontColor('#1A1A1A')
         } else {
           Span(word)
             .fontSize(16)
@@ -78,7 +76,6 @@ struct CityPeoplePage {
           Scroll() {
             Column() {
 
-              /* --- 1. 顶部海报区 --- */
               Stack({ alignContent: Alignment.BottomStart }) {
                 Image($r(`app.media.${item.image}`))
                   .width('100%')
@@ -86,14 +83,12 @@ struct CityPeoplePage {
                   .objectFit(ImageFit.Cover)
                   .translate({ y: this.scrollOffset * 0.3 })
 
-                // 名字区：解决白色文字在黑白照中看不清的问题
                 Column() {
-                  // 增加一个极淡的毛玻璃衬底
                   Column() {
                     Text(item.name)
                       .fontSize(48)
                       .fontWeight(FontWeight.Bolder)
-                      .fontColor('#1A1A1A') // 名字改用深黑
+                      .fontColor('#1A1A1A')
 
                     Text(item.years)
                       .fontSize(18)
@@ -101,15 +96,14 @@ struct CityPeoplePage {
                       .margin({ top: 8 })
                   }
                   .padding({ left: 15, right: 25, top: 15, bottom: 15 })
-                  .backgroundColor('rgba(255,255,255,0.85)') // 强力背景保护，无视图片颜色
-                  .borderRadius({ topRight: 40 }) // 仅右上大圆角，增加设计感
+                  .backgroundColor('rgba(255,255,255,0.85)')
+                  .borderRadius({ topRight: 40 })
                 }
-                .padding({ bottom: 30 }) // 压在最底部
+                .padding({ bottom: 30 })
               }
               .width('100%')
               .height(550)
 
-              /* --- 2. 内容详情区 --- */
               Column() {
                 Text("核心身份")
                   .fontSize(14)
@@ -133,7 +127,6 @@ struct CityPeoplePage {
                 }
                 .margin({ bottom: 30 })
 
-                // 简介部分
                 Stack({ alignContent: Alignment.TopStart }) {
                   Text(item.name.charAt(0))
                     .fontSize(120)
@@ -205,10 +198,10 @@ struct CityPeoplePage {
           .fontWeight(FontWeight.Medium)
           .fontColor('#FFFFFF')
           .backgroundColor('#B22222')
-          .height(42) // 加高按钮
+          .height(42)
           .padding({ left: 20, right: 20 })
-          .borderRadius(22.5) // 圆角同步
-          .offset({ y: -1.5 }) // 视觉上移，增加动感
+          .borderRadius(22.5)
+          .offset({ y: -1.5 })
           .borderRadius(24)
           .linearGradient({
             direction: GradientDirection.Right,
@@ -223,7 +216,7 @@ struct CityPeoplePage {
       }
       .width('100%')
       .padding({ left: 20, right: 20, top: 10 })
-      .backgroundColor('rgba(250,250,248,0.8)') // 顶部导航加一层毛玻璃
+      .backgroundColor('rgba(250,250,248,0.8)')
       .backdropBlur(10)
       .hitTestBehavior(HitTestMode.Transparent)
     }

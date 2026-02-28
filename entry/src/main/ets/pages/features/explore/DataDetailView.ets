@@ -150,12 +150,10 @@ struct DataDetailView {
   }
 
   pageTransition() {
-    // 进入页面：从右侧滑入并淡入
     PageTransitionEnter({ duration: 888, curve: Curve.FastOutSlowIn })
       .slide(SlideEffect.Right)
       .opacity(0)
 
-    // 退出页面：向左侧滑出并淡出
     PageTransitionExit({ duration: 888, curve: Curve.FastOutSlowIn })
       .slide(SlideEffect.Left)
       .opacity(0)
@@ -163,7 +161,6 @@ struct DataDetailView {
 
   build() {
     Column() {
-      // 导航栏
       Row() {
         Stack() {
           Circle({ width: 36, height: 36 }).fill('#1A000000')
@@ -195,7 +192,7 @@ struct DataDetailView {
         .backgroundColor('#1A000000')
         .onClick(() => {
           router.pushUrl({
-            url: 'pages/features/explore/CityCelebrityPage', // 请确保路径正确
+            url: 'pages/features/explore/CityCelebrityPage',
             params: { cityName: this.params?.cityName }
           })
         })
@@ -218,7 +215,6 @@ struct DataDetailView {
       .padding({ left: 16, right: 16, top: 45, bottom: 15 })
       .backgroundColor(this.themeColor)
 
-      // --- 定位逻辑判断显示 ---
       if (this.articleList.length === 0) {
         Column({ space: 20 }) {
           LoadingProgress().width(40).color('#999')
@@ -246,12 +242,11 @@ struct DataDetailView {
 
                 if (item.content.length > 0) {
                   Stack({ alignContent: Alignment.TopStart }) {
-                    // 大字底部显示
                     Text(item.content.charAt(0))
                       .fontSize(60)
                       .fontWeight(FontWeight.Bold)
                       .fontColor(this.accentColor)
-                      .margin({ top: -5 }) // 向上微调，视觉对齐
+                      .margin({ top: -5 })
 
                     Text() {
                       Span('                 \n          ')

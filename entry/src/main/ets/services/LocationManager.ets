@@ -2,15 +2,13 @@ import { geoLocationManager } from '@kit.LocationKit'
 import { abilityAccessCtrl, common } from '@kit.AbilityKit'
 import http from '@ohos.net.http'
 
-/* ========= 对外暴露的类型 ========= */
 export interface RealLocation {
   latitude: number
   longitude: number
   accuracy: number
-  timestamp: number // 新增缓存时间戳
+  timestamp: number
 }
 
-/* ========= 高德逆地理最小结构 ========= */
 interface AMapAddressComponent {
   city?: string | string[]
   province?: string
@@ -33,11 +31,9 @@ interface LocationResult {
 export class LocationManager {
   private static readonly AMAP_KEY: string = 'd4552bc3e20af2857f9cfd5ac95ded1d'
 
-  // 缓存定位 + 时间戳
   private static cachedLocation: RealLocation | null = null
-  private static CACHE_MAX_AGE = 30 * 1000 // 30秒缓存
+  private static CACHE_MAX_AGE = 30 * 1000
 
-  /* ========= 权限 ========= */
   static async requestPermission(
     context: common.UIAbilityContext
   ): Promise<boolean> {
@@ -53,7 +49,6 @@ export class LocationManager {
     }
   }
 
-  /* ========= GuideView 唯一使用的入口 ========= */
   static async getLocation(
     context: common.UIAbilityContext
   ): Promise<RealLocation> {
@@ -85,7 +80,6 @@ export class LocationManager {
     return real
   }
 
-  /* ========= 探索页等需要城市名的场景 ========= */
   static async getRealCity(
     context: common.UIAbilityContext
   ): Promise<string> {
@@ -131,7 +125,6 @@ export class LocationManager {
     }
   }
 
-  /* ========= 清除缓存 ========= */
   static clearCache(): void {
     LocationManager.cachedLocation = null
   }

@@ -18,7 +18,6 @@ export class CardListParameter {
     if (ctx) {
       const pref = await preferences.getPreferences(ctx, 'travel_db');
       const raw = await pref.get('schedules', '[]');
-      // 修正：将解析后的对象断言为更通用的 Record 数组，防止属性访问报错
       const rawArray = JSON.parse(raw as string) as Array<Record<string, string>>;
 
       this.schedules = rawArray.map((item): MySchedule => {
@@ -27,7 +26,6 @@ export class CardListParameter {
           title: item.title,
           location: item.location,
           description: item.description,
-          // 确保将存入的字符串转回 Date 对象
           date: new Date(item.date)
         } as MySchedule;
       });
