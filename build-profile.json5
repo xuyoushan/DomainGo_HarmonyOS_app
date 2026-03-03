@@ -1,19 +1,6 @@
 {
   "app": {
     "signingConfigs": [
-      {
-        "name": "default",
-        "type": "HarmonyOS",
-        "material": {
-          "certpath": "C:\\Users\\Friendly_Xu\\.ohos\\config\\default_DomainGo_HarmonyOS_app_3Ove_vj7jXZcnTT29ihQsmlnolMYYJ7Sth-Q9eDcBAg=.cer",
-          "keyAlias": "debugKey",
-          "keyPassword": "0000001B97D42AABC7E85D32D20412C70D77F153EF075D2F5A1226D817C235C47D1FED0F73B92CC0756F90",
-          "profile": "C:\\Users\\Friendly_Xu\\.ohos\\config\\default_DomainGo_HarmonyOS_app_3Ove_vj7jXZcnTT29ihQsmlnolMYYJ7Sth-Q9eDcBAg=.p7b",
-          "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\Friendly_Xu\\.ohos\\config\\default_DomainGo_HarmonyOS_app_3Ove_vj7jXZcnTT29ihQsmlnolMYYJ7Sth-Q9eDcBAg=.p12",
-          "storePassword": "0000001BD25CEBD6DCE98B734E13DB3D4DA58A9923FE963062511871FC3FC7318A6CE02AE0274F1059201B"
-        }
-      }
     ],
     "products": [
       {

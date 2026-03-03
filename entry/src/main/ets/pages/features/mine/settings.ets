@@ -1,10 +1,17 @@
 import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
 import { PreferenceManager } from '../../../services/PreferenceManager';
-import { postRepo } from '../../../services/PostRepository';
 import promptAction from '@ohos.promptAction';
 import { photoAccessHelper } from '@kit.MediaLibraryKit'
 import { PostItem } from '../../../models/PostItem';
+import { userRepo } from '../../../services/UserRepository';
+import { http } from '@kit.NetworkKit';
+const BASE_URL = 'https://login-inchnzmmux.cn-hangzhou.fcapp.run';
+const pwdReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
+class SimpleResponse {
+  success: boolean = false;
+  message?: string;
+}
 
 @Entry
 @Component
@@ -27,7 +34,7 @@ struct SettingsPage {
 
   validateUsername(name: string): boolean {
     if (name === '_' || /^\d$/.test(name)) return false;
-    const reg = /^[\u4e00-\u9fa5_a-zA-Z0-9]{1,16}$/;
+    const reg = /^(?!\d$)(?!_$)[\u4e00-\u9fa5_a-zA-Z0-9]{1,16}$/;
     return reg.test(name);
   }
 
@@ -74,6 +81,7 @@ struct SettingsPage {
 
   async doLogout() {
     const context = getContext(this) as common.UIAbilityContext;
+    await PreferenceManager.put(context, 'token', '');
     AppStorage.setOrCreate('isLoggedIn', false);
     AppStorage.setOrCreate('userName', '点击注册/登录');
     AppStorage.setOrCreate('currentUserId', '');
@@ -87,6 +95,104 @@ struct SettingsPage {
     router.clear();
     router.replaceUrl({ url: 'pages/Index' });
   }
+
+  async changePassword(newPwd: string) {
+    if (!pwdReg.test(newPwd)) {
+      promptAction.showToast({ message: '密码太弱！需包含字母和数字' });
+      return false;
+    }
+
+    const context = getContext(this) as common.UIAbilityContext;
+    const token = await PreferenceManager.get(context, 'token', '');
+
+    if (!token) {
+      promptAction.showToast({ message: '请先登录' });
+      return false;
+    }
+
+    const httpRequest = http.createHttp();
+    try {
+      const response = await httpRequest.request(
+        `${BASE_URL}/user/changePassword`,
+        {
+          method: http.RequestMethod.POST,
+          header: { 'Content-Type': 'application/json' },
+          extraData: { token, newPassword: newPwd }
+        }
+      );
+
+      const data = response.result as SimpleResponse;
+
+      if (!data.success) {
+        promptAction.showToast({ message: data.message || '修改失败' });
+        return false;
+      }
+
+      return true;
+    } finally {
+      httpRequest.destroy();
+    }
+  }
+
+  async deleteAccount() {
+    const context = getContext(this) as common.UIAbilityContext;
+    const token = await PreferenceManager.get(context, 'token', '');
+
+    if (!token) {
+      promptAction.showToast({ message: '请先登录' });
+      return false;
+    }
+
+    const httpRequest = http.createHttp();
+    try {
+      const response = await httpRequest.request(
+        `${BASE_URL}/user/deleteAccount`,
+        {
+          method: http.RequestMethod.POST,
+          header: { 'Content-Type': 'application/json' },
+          extraData: { token }
+        }
+      );
+
+      const data = response.result as SimpleResponse;
+
+      if (!data.success) {
+        promptAction.showToast({ message: data.message || '注销失败' });
+        return false;
+      }
+
+      return true;
+    } finally {
+      httpRequest.destroy();
+    }
+  }
+
+  async updateAvatar() {
+    const context = getContext(this) as common.UIAbilityContext;
+
+    if (!this.tempAvatar || this.tempAvatar.trim() === '') {
+      promptAction.showToast({ message: '请选择头像' });
+      return false;
+    }
+
+    this.globalUserAvatar = this.tempAvatar;
+
+    await PreferenceManager.put(context, 'userAvatar', this.tempAvatar);
+
+    let posts = AppStorage.get<PostItem[]>('globalPostList') || [];
+    const updatedPosts = posts.map(p => {
+      if (p.userId === this.userId) {
+        p.avatar = this.tempAvatar;
+      }
+      return p;
+    });
+    AppStorage.setOrCreate('globalPostList', updatedPosts);
+    AppStorage.setOrCreate('needsRefreshPosts', Date.now());
+
+    promptAction.showToast({ message: '头像已更新' });
+    return true;
+  }
+
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
@@ -203,29 +309,38 @@ struct SettingsPage {
                   .fontWeight(FontWeight.Medium)
                   .enabled(!this.isChecking)
                   .onClick(async () => {
+                    // 1. 用户名校验
                     if (!this.validateUsername(this.tempName)) {
                       promptAction.showToast({ message: '用户名不合规 (1-16位中英文数字下划线)' });
                       return;
                     }
+
+                    const context = getContext(this) as common.UIAbilityContext;
+
                     try {
-                      await postRepo.updateUserInfo(this.userId, this.tempName, this.tempAvatar, this.newPassword);
                       this.globalUserName = this.tempName;
-                      this.globalUserAvatar = this.tempAvatar;
-                      const context = getContext(this) as common.UIAbilityContext;
                       await PreferenceManager.put(context, 'userName', this.tempName);
-                      await PreferenceManager.put(context, 'userAvatar', this.tempAvatar);
+
+                      if (this.tempAvatar) {
+                        await this.updateAvatar();
+                      }
+                      if (this.newPassword && this.newPassword.length > 0) {
+                        const ok = await this.changePassword(this.newPassword);
+                        if (!ok) return;
+                      }
                       let posts = AppStorage.get<PostItem[]>('globalPostList') || [];
                       const updatedPosts = posts.map(p => {
                         if (p.userId === this.userId) {
                           p.userName = this.tempName;
-                          p.avatar = this.tempAvatar;
                         }
                         return p;
                       });
                       AppStorage.setOrCreate('globalPostList', updatedPosts);
                       AppStorage.setOrCreate('needsRefreshPosts', Date.now());
+
                       promptAction.showToast({ message: '资料已更新' });
                       router.back();
+
                     } catch (e) {
                       promptAction.showToast({ message: '更新失败: ' + (e as Error).message });
                     }
@@ -254,7 +369,12 @@ struct SettingsPage {
                           buttons: [{ text: '我再想想', color: '#000' }, { text: '确定删除', color: '#FF4D4F' }]
                         }).then(async (final) => {
                           if (final.index === 1) {
-                            await postRepo.deleteUserAccount(this.userId);
+                            const ok = await this.deleteAccount();
+                            if (!ok) {
+                              promptAction.showToast({ message: '注销失败，请稍后再试' });
+                              return;
+                            }
+
                             const context = getContext(this) as common.UIAbilityContext;
                             AppStorage.setOrCreate('isLoggedIn', false);
                             AppStorage.setOrCreate('userName', '点击注册/登录');
@@ -262,7 +382,7 @@ struct SettingsPage {
                             AppStorage.setOrCreate('userAvatar', 'app.media.start');
                             await PreferenceManager.put(context, 'isLoggedIn', false);
                             await PreferenceManager.put(context, 'currentUserId', '');
-                            await PreferenceManager.put(context, 'userName', '');
+                            await PreferenceManager.put(context, 'userName', '点击注册/登录');
                             await PreferenceManager.put(context, 'userAvatar', 'app.media.start');
                             promptAction.showToast({ message: '账号已注销' });
                             router.clear();

@@ -4,6 +4,7 @@ import { PostItem, CommentItem } from '../../models/PostItem';
 import { postRepo } from '../../services/PostRepository';
 import { PreferenceManager } from '../../services/PreferenceManager';
 import { common } from '@kit.AbilityKit';
+import { CloudUser, userRepo } from '../../services/UserRepository';
 
 interface MessageNotification {
   id: string;
@@ -147,7 +148,8 @@ export struct CircleView {
     this.isRefreshing = true;
     try {
       if (this.isLoggedIn && this.currentUserId) {
-        const latestUser = await postRepo.getUserById(this.currentUserId);
+        const latestUser: CloudUser | null = await userRepo.getUserById(this.currentUserId);
+
         if (latestUser) {
           AppStorage.setOrCreate('userName', latestUser.username);
           AppStorage.setOrCreate('userAvatar', latestUser.avatar);
@@ -186,49 +188,30 @@ export struct CircleView {
     this.checkAuthAndExecute(async () => {
       const index = this.globalPosts.findIndex(p => p.id === post.id);
       if (index === -1) return;
-      const origin = this.globalPosts[index];
 
-      let updatedPost: PostItem = {
-        id: origin.id,
-        userId: origin.userId,
-        userName: origin.userName,
-        avatar: origin.avatar,
-        text: origin.text,
-        images: origin.images,
-        timestamp: origin.timestamp,
-        location: origin.location,
-        isLiked: origin.isLiked,
-        likeCount: origin.likeCount,
-        likeUserIds: origin.likeUserIds ? [...origin.likeUserIds] : [],
-        isCollected: origin.isCollected,
-        collectUserIds: origin.collectUserIds ? [...origin.collectUserIds] : [],
-        comments: origin.comments
-      };
-
-      const ids = updatedPost.likeUserIds!;
+      let updatedPost: PostItem = JSON.parse(JSON.stringify(this.globalPosts[index]));
+      const ids = updatedPost.likeUserIds || [];
       const userIdx = ids.indexOf(this.currentUserId);
-
-      if (!updatedPost.isLiked) {
-        if (userIdx === -1) {
-          ids.push(this.currentUserId);
-        }
+      if (userIdx === -1) {
+        ids.push(this.currentUserId);
         updatedPost.isLiked = true;
         updatedPost.likeCount++;
         this.sendNotification(updatedPost, 'like');
       } else {
-        if (userIdx !== -1) {
-          ids.splice(userIdx, 1);
-        }
+        ids.splice(userIdx, 1);
         updatedPost.isLiked = false;
         updatedPost.likeCount = Math.max(0, updatedPost.likeCount - 1);
       }
 
-      updatedPost.likeUserIds = ids;
+      updatedPost.likeUserIds = [...ids];
 
-      this.globalPosts = this.globalPosts.map(p => p.id === updatedPost.id ? updatedPost : p);
-
+      this.globalPosts = [
+        ...this.globalPosts.slice(0, index),
+        updatedPost,
+        ...this.globalPosts.slice(index + 1)
+      ];
       AppStorage.setOrCreate('globalPostList', this.globalPosts);
-      postRepo.updatePostStatus(
+      await postRepo.updatePostStatus(
         updatedPost.id,
         updatedPost.isLiked,
         updatedPost.isCollected || false,
@@ -243,46 +226,31 @@ export struct CircleView {
     this.checkAuthAndExecute(async () => {
       const index = this.globalPosts.findIndex(p => p.id === post.id);
       if (index === -1) return;
-      const origin = this.globalPosts[index];
 
-      let updatedPost: PostItem = {
-        id: origin.id,
-        userId: origin.userId,
-        userName: origin.userName,
-        avatar: origin.avatar,
-        text: origin.text,
-        images: origin.images,
-        timestamp: origin.timestamp,
-        location: origin.location,
-        isLiked: origin.isLiked,
-        likeCount: origin.likeCount,
-        likeUserIds: origin.likeUserIds ? [...origin.likeUserIds] : [],
-        comments: origin.comments,
-        isCollected: origin.isCollected,
-        collectUserIds: origin.collectUserIds ? [...origin.collectUserIds] : []
-      };
+      let updatedPost: PostItem = JSON.parse(JSON.stringify(this.globalPosts[index]));
 
-      const collectIds = updatedPost.collectUserIds!;
+      const collectIds = updatedPost.collectUserIds || [];
       const userIdx = collectIds.indexOf(this.currentUserId);
 
-      if (!updatedPost.isCollected) {
-        if (userIdx === -1) {
-          collectIds.push(this.currentUserId);
-        }
+      if (userIdx === -1) {
+        collectIds.push(this.currentUserId);
         updatedPost.isCollected = true;
         promptAction.showToast({ message: '已加入收藏列表' });
         this.sendNotification(updatedPost, 'collect');
       } else {
-        if (userIdx !== -1) {
-          collectIds.splice(userIdx, 1);
-        }
+        collectIds.splice(userIdx, 1);
         updatedPost.isCollected = false;
         promptAction.showToast({ message: '已取消收藏' });
       }
 
-      updatedPost.collectUserIds = collectIds;
+      updatedPost.collectUserIds = [...collectIds];
 
-      this.globalPosts = this.globalPosts.map(p => p.id === updatedPost.id ? updatedPost : p);
+      this.globalPosts = [
+        ...this.globalPosts.slice(0, index),
+        updatedPost,
+        ...this.globalPosts.slice(index + 1)
+      ];
+
       AppStorage.setOrCreate('globalPostList', this.globalPosts);
 
       await postRepo.updatePostStatus(
@@ -571,8 +539,7 @@ export struct CircleView {
     .shadow({ radius: 10, color: '#08000000', offsetY: 4 })
   }
 
-  @Builder
-  InteractionIcon(icon: Resource, text: string, color: string = '#666666') {
+  @Builder InteractionIcon(icon: Resource, text: string, color: string = '#666666') {
     Row() {
       SymbolGlyph(icon)
         .fontSize(20)
@@ -583,5 +550,6 @@ export struct CircleView {
         .margin({ left: 6 })
     }
     .margin({ right: 30 })
+    .hitTestBehavior(HitTestMode.Transparent)
   }
 }

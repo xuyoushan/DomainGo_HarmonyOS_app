@@ -21,12 +21,13 @@ export class PostRepository {
     for (let i = 0; i < 6; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    result += Date.now().toString().slice(-4); // 时间戳
+    result += Date.now().toString().slice(-4);
     return result;
   }
 
   async init(context: Context) {
     if (this.store) return;
+
     const CONFIG: relationalStore.StoreConfig = {
       name: 'DomainGo_2.db',
       securityLevel: relationalStore.SecurityLevel.S1
@@ -34,6 +35,7 @@ export class PostRepository {
 
     this.store = await relationalStore.getRdbStore(context, CONFIG);
 
+    // USERS 表保留（帖子 LEFT JOIN 需要）
     await this.store.executeSql(`
       CREATE TABLE IF NOT EXISTS USERS (
         ID TEXT PRIMARY KEY,
@@ -74,8 +76,13 @@ export class PostRepository {
       )`);
   }
 
+  // ============================
+  // 通知系统（完整保留）
+  // ============================
+
   async sendNotification(receiverId: string, senderId: string, senderName: string, senderAvatar: string, type: string, content: string) {
     if (!this.store || receiverId === senderId) return;
+
     let valueBucket: relationalStore.ValuesBucket = {
       'ID': 'MSG_' + Date.now(),
       'RECEIVER_ID': receiverId,
@@ -87,6 +94,7 @@ export class PostRepository {
       'TIMESTAMP': Date.now(),
       'IS_READ': 0
     };
+
     await this.store.insert('NOTIFICATIONS', valueBucket);
   }
 
@@ -111,6 +119,7 @@ export class PostRepository {
         isRead: resultSet.getLong(resultSet.getColumnIndex('IS_READ')) === 1
       });
     }
+
     resultSet.close();
     return msgs;
   }
@@ -140,96 +149,17 @@ export class PostRepository {
     if (!this.store) return;
     let predicates = new relationalStore.RdbPredicates('NOTIFICATIONS');
     predicates.equalTo('RECEIVER_ID', myId);
-    if (types.length > 0) {
-      predicates.and().in('TYPE', types);
-    }
+    if (types.length > 0) predicates.and().in('TYPE', types);
     await this.store.update({ 'IS_READ': 1 }, predicates);
   }
 
-  async isEmailRegistered(email: string): Promise<boolean> {
-    if (!this.store) return false;
-    let predicates = new relationalStore.RdbPredicates('USERS');
-    predicates.equalTo('EMAIL', email);
-    let resultSet = await this.store.query(predicates);
-    const exists = resultSet.rowCount > 0;
-    resultSet.close();
-    return exists;
-  }
-
-  async updateUserInfo(userId: string, username: string, avatar: string, password?: string): Promise<void> {
-    if (!this.store) return;
-    const bucket: relationalStore.ValuesBucket = { 'USERNAME': username, 'AVATAR': avatar };
-    if (password && password.trim().length > 0) {bucket['PASSWORD'] = password;}
-
-    let predicates = new relationalStore.RdbPredicates('USERS');
-    predicates.equalTo('ID', userId);
-    await this.store.update(bucket, predicates);
-
-    let postPredicates = new relationalStore.RdbPredicates('POSTS');
-    postPredicates.equalTo('USER_ID', userId);
-    await this.store.update({ 'USER_NAME': username }, postPredicates);
-  }
-
-  async deleteUserAccount(userId: string): Promise<void> {
-    if (!this.store) return;
-    try {
-      let userPredicates = new relationalStore.RdbPredicates('USERS');
-      userPredicates.equalTo('ID', userId);
-      await this.store.delete(userPredicates);
-
-      let postPredicates = new relationalStore.RdbPredicates('POSTS');
-      postPredicates.equalTo('USER_ID', userId);
-      await this.store.delete(postPredicates);
-
-      console.info(`账号 ${userId} 已注销，相关数据已清理`);
-    } catch (err) {
-      console.error(`注销失败: ${JSON.stringify(err)}`);
-    }
-  }
-
-  async registerUser(user: UserInfo) {
-    if (!this.store) return;
-    const finalId: string = (user.id && user.id.length > 0) ? user.id : this.generateCustomId();
-    const bucket: relationalStore.ValuesBucket = {
-      'ID': finalId,
-      USERNAME: user.username,
-      EMAIL: user.email,
-      PASSWORD: user.password || '',
-      AVATAR: user.avatar
-    };
-    await this.store.insert('USERS', bucket);
-    const result: UserInfo = {
-      id: finalId,
-      username: user.username,
-      email: user.email,
-      password: user.password,
-      avatar: user.avatar
-    };
-    return result;
-  }
-
-  async checkUser(email: string, password: string): Promise<UserInfo | null> {
-    if (!this.store) return null;
-    let predicates = new relationalStore.RdbPredicates('USERS');
-    predicates.equalTo('EMAIL', email).and().equalTo('PASSWORD', password);
-    let resultSet = await this.store.query(predicates);
-    if (resultSet && resultSet.rowCount > 0 && resultSet.goToFirstRow()) {
-      const dbAvatar = resultSet.getString(resultSet.getColumnIndex('AVATAR'));
-      const userInfo: UserInfo = {
-        id: resultSet.getString(resultSet.getColumnIndex('ID')),
-        username: resultSet.getString(resultSet.getColumnIndex('USERNAME')),
-        email: resultSet.getString(resultSet.getColumnIndex('EMAIL')),
-        avatar: (dbAvatar && dbAvatar !== 'undefined') ? dbAvatar : 'app.media.start'
-      };
-      resultSet.close();
-      return userInfo;
-    }
-    if (resultSet) resultSet.close();
-    return null;
-  }
+  // ============================
+  // 帖子系统（完整保留）
+  // ============================
 
   async insertPost(post: PostItem, userId: string) {
     if (!this.store) throw new Error('DB_NOT_INIT');
+
     const bucket: relationalStore.ValuesBucket = {
       'ID': post.id,
       'USER_ID': userId,
@@ -243,16 +173,17 @@ export class PostRepository {
       'IS_COLLECTED': post.isCollected ? 1 : 0,
       'TAGS': JSON.stringify(post.tags || [])
     };
+
     await this.store.insert('POSTS', bucket);
   }
 
   async deletePost(id: string): Promise<void> {
     if (!this.store) return;
+
     try {
       let predicates = new relationalStore.RdbPredicates('POSTS');
       predicates.equalTo('ID', id);
-      const rows = await this.store.delete(predicates);
-      console.info(`成功从数据库删除帖子: ${id}, 影响行数: ${rows}`);
+      await this.store.delete(predicates);
     } catch (err) {
       console.error(`删除失败: ${JSON.stringify(err)}`);
     }
@@ -260,6 +191,7 @@ export class PostRepository {
 
   async updatePost(post: PostItem): Promise<void> {
     if (!this.store) return;
+
     let bucket: relationalStore.ValuesBucket = {
       'TEXT_CONTENT': post.text,
       'IMAGES': JSON.stringify(post.images),
@@ -269,40 +201,28 @@ export class PostRepository {
       'LIKE_IDS': JSON.stringify(post.likeUserIds || []),
       'COLLECT_IDS': JSON.stringify(post.collectUserIds || [])
     };
+
     let predicates = new relationalStore.RdbPredicates('POSTS');
     predicates.equalTo('ID', post.id);
-    await this.store.update(bucket, predicates);
-  }
 
-  async getUserById(userId: string): Promise<UserInfo | null> {
-    if (!this.store || !userId) return null;
-    let predicates = new relationalStore.RdbPredicates('USERS');
-    predicates.equalTo('ID', userId);
-    let resultSet = await this.store.query(predicates);
-    if (resultSet.goToFirstRow()) {
-      const userInfo: UserInfo = {
-        id: resultSet.getString(resultSet.getColumnIndex('ID')),
-        username: resultSet.getString(resultSet.getColumnIndex('USERNAME')),
-        avatar: resultSet.getString(resultSet.getColumnIndex('AVATAR')),
-        email: resultSet.getString(resultSet.getColumnIndex('EMAIL'))
-      };
-      resultSet.close();
-      return userInfo;    }
-    return null;
+    await this.store.update(bucket, predicates);
   }
 
   async fetchAllPosts(): Promise<PostItem[]> {
     if (!this.store) return [];
+
     const sql = `
-    SELECT
-      P.ID, P.USER_ID, P.USER_NAME, P.TEXT_CONTENT, P.TIMESTAMP, P.LOCATION,
-      P.IMAGES, P.IS_LIKED, P.LIKE_COUNT, P.IS_COLLECTED,
-      U.AVATAR AS USER_REAL_AVATAR
-    FROM POSTS P
-    LEFT JOIN USERS U ON P.USER_ID = U.ID
-    ORDER BY P.TIMESTAMP DESC`;
+      SELECT
+        P.ID, P.USER_ID, P.USER_NAME, P.TEXT_CONTENT, P.TIMESTAMP, P.LOCATION,
+        P.IMAGES, P.IS_LIKED, P.LIKE_COUNT, P.IS_COLLECTED,
+        U.AVATAR AS USER_REAL_AVATAR
+      FROM POSTS P
+      LEFT JOIN USERS U ON P.USER_ID = U.ID
+      ORDER BY P.TIMESTAMP DESC`;
+
     let resultSet = await this.store.querySql(sql);
     let posts: PostItem[] = [];
+
     while (resultSet.goToNextRow()) {
       let avatarUri = "";
       const avatarIndex = resultSet.getColumnIndex('USER_REAL_AVATAR');
@@ -310,11 +230,14 @@ export class PostRepository {
       if (!resultSet.isColumnNull(avatarIndex)) {
         avatarUri = resultSet.getString(avatarIndex);
       }
-      const isValidPath = avatarUri &&
-        avatarUri !== "" &&
-        avatarUri !== "app.media.start" &&
-        avatarUri !== "undefined" &&
-        avatarUri.length > 5;
+
+      const isValidPath =
+        avatarUri &&
+          avatarUri !== "" &&
+          avatarUri !== "app.media.start" &&
+          avatarUri !== "undefined" &&
+          avatarUri.length > 5;
+
       posts.push({
         id: resultSet.getString(resultSet.getColumnIndex('ID')),
         userId: resultSet.getString(resultSet.getColumnIndex('USER_ID')),
@@ -332,12 +255,14 @@ export class PostRepository {
         collectUserIds: []
       });
     }
+
     resultSet.close();
     return posts;
   }
 
   async updatePostStatus(postId: string, isLiked: boolean, isCollected: boolean, likeCount: number, likeIds: string[], collectIds: string[]): Promise<void> {
     if (!this.store) return;
+
     let valueBucket: relationalStore.ValuesBucket = {
       'IS_LIKED': isLiked ? 1 : 0,
       'IS_COLLECTED': isCollected ? 1 : 0,
@@ -345,15 +270,11 @@ export class PostRepository {
       'LIKE_IDS': JSON.stringify(likeIds || []),
       'COLLECT_IDS': JSON.stringify(collectIds || [])
     };
+
     let predicates = new relationalStore.RdbPredicates('POSTS');
     predicates.equalTo('ID', postId);
 
-    try {
-      await this.store.update(valueBucket, predicates);
-      console.info(`Post ${postId} status updated in DB`);
-    } catch (err) {
-      console.error(`Update_DB_Error: ${JSON.stringify(err)}`);
-    }
+    await this.store.update(valueBucket, predicates);
   }
 }
 

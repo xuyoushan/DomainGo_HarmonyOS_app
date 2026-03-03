@@ -12,6 +12,7 @@ export struct MineView {
   @StorageLink('browseHistory') history: PostItem[] = [];
   @StorageLink('userAvatar') userAvatar: string = '';
   @StorageLink('currentUserId') userId: string = '';
+  @StorageLink('domainId') domainId: string = '';
 
   checkLoginAndExecute(action: () => void) {
     if (!this.isLoggedIn) {
@@ -151,7 +152,7 @@ export struct MineView {
           .fontWeight(FontWeight.Bold)
           .fontColor('#1A1A1A')
 
-        Text(this.isLoggedIn ? `寻域 ID: ${this.userId}` : 'Hi，欢迎来到寻域')
+        Text(this.isLoggedIn ? `域号: ${this.domainId}` : 'Hi，欢迎来到寻域')
           .fontSize(14)
           .fontColor('#999999')
           .margin({ top: 4 })
@@ -278,6 +279,8 @@ export struct MineView {
     AppStorage.setOrCreate('userName', '点击注册/登录');
     AppStorage.setOrCreate('currentUserId', '');
     AppStorage.setOrCreate('userAvatar', 'app.media.start');
+    AppStorage.setOrCreate('domainId', '');
+    await PreferenceManager.put(context, 'domainId', '');
     await PreferenceManager.put(context, 'isLoggedIn', false);
     await PreferenceManager.put(context, 'currentUserId', '');
     await PreferenceManager.put(context, 'userName', '');

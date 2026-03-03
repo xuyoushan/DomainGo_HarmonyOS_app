@@ -1,6 +1,9 @@
 import { AbilityConstant, UIAbility, Want, ConfigurationConstant } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import { autoLogin } from '../utils/autoLogin';
+import { PreferenceManager } from '../services/PreferenceManager';
+import { common } from '@kit.AbilityKit';
 
 interface PostContinuationState { text: string;images: string[];location: string;cursor: number; }
 
@@ -54,10 +57,26 @@ export default class EntryAbility extends UIAbility {
     this.handleContinuation(want, launchParam);
   }
 
-  onWindowStageCreate(windowStage: window.WindowStage): void {
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+  async onWindowStageCreate(windowStage: window.WindowStage): Promise<void> {
+    hilog.info(DOMAIN, 'testTag', 'Ability onWindowStageCreate start');
+
+    const context = this.context as common.UIAbilityContext;
+
     AppStorage.setOrCreate('currentCity', '定位中...');
     AppStorage.setOrCreate('currentWeather', '26°C');
+
+    try {
+      await autoLogin(context);
+
+      if (!AppStorage.has('domainId')) {
+        const savedDomainId = await PreferenceManager.get(context, 'domainId', '');
+        AppStorage.setOrCreate('domainId', savedDomainId);
+      }
+
+      hilog.info(DOMAIN, 'testTag', 'AutoLogin and state restoration completed');
+    } catch (e) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to prepare data: %{public}s', JSON.stringify(e));
+    }
 
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
@@ -67,6 +86,7 @@ export default class EntryAbility extends UIAbility {
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
     });
   }
+
 
   onForeground(): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
