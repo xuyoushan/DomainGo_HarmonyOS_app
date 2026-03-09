@@ -4,6 +4,7 @@ import pasteboard from '@ohos.pasteboard';
 import { PostItem } from '../../../models/PostItem';
 import { common } from '@kit.AbilityKit';
 import { PreferenceManager } from '../../../services/PreferenceManager';
+import { getSafeAvatar } from '../../../utils/ImageUtils';
 
 interface MessageItem {
   id: string;
@@ -33,6 +34,14 @@ struct UserHomeView {
   @State selectedTabIndex: number = 0;
   @State baseFollowerCount: number = 1;
 
+  normalizeImagePath(img: string | Resource): ResourceStr {
+    if (typeof img !== 'string') return img as ResourceStr;
+    if (img.startsWith('file://') || img.startsWith('http') || img.startsWith('resource://')) {
+      return img as ResourceStr;
+    }
+    return ('file://' + img) as ResourceStr;
+  }
+
   async aboutToAppear() {
     const params = router.getParams() as Record<string, Object>;
     if (params && params.userId) {
@@ -59,9 +68,6 @@ struct UserHomeView {
   }
 
   async loadAllData() {
-    const context = getContext(this) as common.UIAbilityContext;
-    const historyJson = await PreferenceManager.get(context, 'browseHistory', '[]');
-
     this.refreshUserInfo();
   }
 
@@ -72,9 +78,52 @@ struct UserHomeView {
   }
 
   refreshUserInfo() {
-    this.userPosts = this.globalPosts.filter(post => post.userId === this.targetUserId);
-    this.favoritePosts = this.globalPosts.filter(post => post.isCollected === true);
+    this.userPosts = this.globalPosts
+      .filter(post => post.userId === this.targetUserId)
+      .map((p: PostItem) => {
+        const newItem: PostItem = {
+          id: p.id,
+          userId: p.userId,
+          userName: p.userName,
+          avatar: p.avatar,
+          text: p.text,
+          location: p.location,
+          timestamp: p.timestamp,
+          images: (p.images || []).map(img => this.normalizeImagePath(img)),
+          likeCount: p.likeCount,
+          isLiked: p.isLiked,
+          isCollected: p.isCollected,
+          comments: p.comments || [],
+          likeUserIds: p.likeUserIds || [],
+          collectUserIds: p.collectUserIds || []
+        };
+        return newItem;
+      });
+
+    this.favoritePosts = this.globalPosts
+      .filter(post => post.isCollected === true)
+      .map((p: PostItem) => {
+        const newItem: PostItem = {
+          id: p.id,
+          userId: p.userId,
+          userName: p.userName,
+          avatar: p.avatar,
+          text: p.text,
+          location: p.location,
+          timestamp: p.timestamp,
+          images: (p.images || []).map(img => this.normalizeImagePath(img)),
+          likeCount: p.likeCount,
+          isLiked: p.isLiked,
+          isCollected: p.isCollected,
+          comments: p.comments || [],
+          likeUserIds: p.likeUserIds || [],
+          collectUserIds: p.collectUserIds || []
+        };
+        return newItem;
+      });
+
     this.baseFollowerCount = 1;
+
     if (this.targetUserId === this.myId) {
       this.targetUserName = AppStorage.get('userName') || '探险家';
     } else if (this.userPosts.length > 0) {
@@ -84,18 +133,10 @@ struct UserHomeView {
 
   getSafeDisplayAvatar(): ResourceStr {
     if (this.targetUserId === this.myId) {
-      if (
-        this.myAvatar &&
-          this.myAvatar !== '' &&
-          this.myAvatar !== 'undefined' &&
-          this.myAvatar !== 'app.media.start'
-      ) {
-        return this.myAvatar;
-      }
-      return $r('app.media.start');
+      return getSafeAvatar(this.myAvatar);
     }
-    if (this.userPosts.length > 0 && this.userPosts[0].avatar) {
-      return this.userPosts[0].avatar;
+    if (this.userPosts.length > 0) {
+      return getSafeAvatar(this.userPosts[0].avatar);
     }
     return $r('app.media.start');
   }
@@ -177,7 +218,7 @@ struct UserHomeView {
 
         Column() {
           Row() {
-            Image(this.getSafeDisplayAvatar())
+            Image(getSafeAvatar(this.getSafeDisplayAvatar()))
               .width(80).height(80)
               .borderRadius(40)
               .border({ width: 2, color: '#C0A47E' })
@@ -288,6 +329,19 @@ struct UserHomeView {
     .backgroundColor('#FAF9F7')
   }
 
+  toggleCollect(item: PostItem) {
+    const index = this.globalPosts.findIndex(p => p.id === item.id);
+    if (index === -1) return;
+
+    this.globalPosts[index].isCollected = !this.globalPosts[index].isCollected;
+
+    this.globalPosts = [...this.globalPosts]; // 触发 UI 刷新
+    AppStorage.setOrCreate('globalPostList', this.globalPosts);
+
+    this.refreshUserInfo();
+    this.syncFavoritesToDisk();
+  }
+
   @Builder TabBtn(label: string, index: number) {
     Column() {
       Text(label)
@@ -343,7 +397,7 @@ struct UserHomeView {
             SymbolGlyph(item.isCollected ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'))
               .fontSize(16)
               .fontColor([item.isCollected ? '#B22222' : '#CCC'])
-              .onClick((event: ClickEvent) => {
+              .onClick(() => {
                 item.isCollected = !item.isCollected;
                 this.syncFavoritesToDisk();
                 this.refreshUserInfo();

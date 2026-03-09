@@ -5,6 +5,9 @@ import { PostItem, CommentItem } from '../../models/PostItem';
 import image from '@ohos.multimedia.image';
 import { postRepo } from '../../services/PostRepository';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { getSafeAvatar } from '../../utils/ImageUtils';
+import { PreferenceManager } from '../../services/PreferenceManager';
+import { common } from '@kit.AbilityKit';
 
 export interface MessageNotification {
   id: string;
@@ -38,16 +41,37 @@ struct PostDetailView {
     isCollected: false,
     comments: []
   };
-
   @State commentInput: string = '';
   @State showBigImage: boolean = false;
-  @State currentPreviewImg: string | Resource = '';
+  @State currentPreviewImg: ResourceStr = '';
   @State replyPlaceholder: string = '写下你的评论...';
   @State replyingToUser: string = '';
-
   @State isExpanded: boolean = false;
+
   private readonly MAX_LINES: number = 4;
   private snapshotId: string = 'root_post_detail';
+
+  normalizeImagePath(img: string | Resource): string | Resource {
+    if (typeof img !== 'string') return img;
+    if (img.startsWith('file://') || img.startsWith('http') || img.startsWith('resource://')) {
+      return img;
+    }
+    return 'file://' + img;
+  }
+
+  deleteLocalImage(path: string) {
+    try {
+      let realPath = path.replace('file://', '');
+      fs.unlinkSync(realPath);
+    } catch (e) {
+      console.error('Delete image failed:', JSON.stringify(e));
+    }
+  }
+
+  getImageSrc(img: string | Resource): ResourceStr {
+    const src = this.normalizeImagePath(img);
+    return src as ResourceStr;
+  }
 
   async saveToAlbum() {
     try {
@@ -90,14 +114,9 @@ struct PostDetailView {
   }
 
   aboutToAppear() {
-    this.syncFromGlobal();
-  }
-
-  syncFromGlobal() {
-    const p = this.globalPosts.find(item => item.id === this.postData.id);
+    const id = this.params.postId as string;
+    const p = this.globalPosts.find(item => item.id === id);
     if (!p) return;
-
-    const uid = this.currentUserId;
 
     this.postData = {
       id: p.id,
@@ -105,7 +124,41 @@ struct PostDetailView {
       userName: p.userName,
       avatar: p.avatar,
       text: p.text,
-      images: p.images,
+      location: p.location,
+      timestamp: p.timestamp,
+      images: (p.images || []).map(img => this.normalizeImagePath(img)),
+      comments: p.comments || [],
+      likeUserIds: p.likeUserIds || [],
+      collectUserIds: p.collectUserIds || [],
+      likeCount: (p.likeUserIds || []).length,
+      isLiked: (p.likeUserIds || []).includes(this.currentUserId),
+      isCollected: (p.collectUserIds || []).includes(this.currentUserId)
+    };
+  }
+
+  async deletePost(postId: string) {
+    const post = this.globalPosts.find(p => p.id === postId);
+    if (post && post.images) {
+      post.images.forEach(img => {
+        if (typeof img === 'string') {
+          this.deleteLocalImage(img);
+        }
+      });
+    }
+    await postRepo.deletePost(postId);
+  }
+
+  syncFromGlobal() {
+    const p = this.globalPosts.find(item => item.id === this.postData.id);
+    if (!p) return;
+
+    this.postData = {
+      id: p.id,
+      userId: p.userId,
+      userName: p.userName,
+      avatar: p.avatar,
+      text: p.text,
+      images: (p.images || []).map(img => this.normalizeImagePath(img)),
       timestamp: p.timestamp,
       location: p.location,
       comments: p.comments || [],
@@ -195,6 +248,8 @@ struct PostDetailView {
         const newList = this.globalPosts.filter(p => p.id !== idToDelete);
         this.globalPosts = newList;
         AppStorage.setOrCreate('globalPostList', newList.slice());
+        const context = getContext(this) as common.UIAbilityContext;
+        await PreferenceManager.put(context, 'globalPostList', JSON.stringify(newList));
 
         promptAction.showToast({ message: '帖子已删除' });
 
@@ -210,9 +265,9 @@ struct PostDetailView {
     if (!this.commentInput.trim()) return;
 
     const currentName = AppStorage.get<string>('userName') || '匿名探险家';
-    const currentAvatar = AppStorage.get<string>('userAvatar') || $r('app.media.start');
+    const rawAvatar = AppStorage.get<string>('userAvatar');
+    const avatarForComment: ResourceStr = getSafeAvatar(rawAvatar);
     let content = this.commentInput;
-
     if (this.replyingToUser) {
       content = `回复 @${this.replyingToUser} : ${this.commentInput}`;
     }
@@ -220,7 +275,7 @@ struct PostDetailView {
     const newComment: CommentItem = {
       userId: this.currentUserId,
       userName: currentName,
-      avatar: currentAvatar,
+      avatar: avatarForComment,
       content: content,
       timestamp: Date.now()
     };
@@ -228,12 +283,10 @@ struct PostDetailView {
     const index = this.globalPosts.findIndex(p => p.id === this.postData.id);
     if (index !== -1) {
       const origin = this.globalPosts[index];
-      if (!origin.comments) {origin.comments = [];
-        origin.comments.unshift(newComment);
-        this.postData.comments = [...origin.comments];
-        this.globalPosts[index] = origin;
-        await postRepo.updatePost(origin);
-        AppStorage.setOrCreate('globalPostList', [...this.globalPosts]);}
+
+      if (!origin.comments) {
+        origin.comments = [];
+      }
       if (this.replyingToUser) {
         const targetIndex = origin.comments.findIndex(
           (c: CommentItem) => c.userName === this.replyingToUser
@@ -246,22 +299,19 @@ struct PostDetailView {
       } else {
         origin.comments.unshift(newComment);
       }
-      const refreshedComments: CommentItem[] = [];
-      for (let i = 0; i < origin.comments.length; i++) {
-        refreshedComments.push(origin.comments[i]);
-      }
-      origin.comments = refreshedComments;
-      this.postData.comments = refreshedComments;
+      origin.comments = [...origin.comments];
+      this.postData.comments = origin.comments;
       this.globalPosts[index] = origin;
-      AppStorage.setOrCreate('globalPostList', this.globalPosts.slice());
+      this.globalPosts = [...this.globalPosts];
+      AppStorage.setOrCreate('globalPostList', this.globalPosts);
+      await postRepo.updatePost(origin);
+      const context = getContext(this) as common.UIAbilityContext;
+      await PreferenceManager.put(context, 'globalPostList', JSON.stringify(this.globalPosts));
     }
     if (this.postData.userId !== this.currentUserId) {
-      let avatarForNotify: string = '';
-      if (typeof currentAvatar === 'string') {
-        avatarForNotify = currentAvatar;
-      } else {
-        avatarForNotify = '';
-      }
+      let avatarForNotify: string =
+        typeof rawAvatar === 'string' ? rawAvatar : '';
+
       try {
         await postRepo.sendNotification(
           this.postData.userId,
@@ -278,6 +328,7 @@ struct PostDetailView {
     this.commentInput = '';
     this.replyingToUser = '';
     this.replyPlaceholder = '写下你的评论...';
+
     promptAction.showToast({ message: '评论成功' });
   }
 
@@ -327,7 +378,7 @@ struct PostDetailView {
         Scroll() {
           Column() {
             Row() {
-              Image(this.postData.avatar || $r('app.media.start'))
+              Image(getSafeAvatar(this.postData.avatar))
                 .width(45).height(45).borderRadius(22.5)
                 .onClick(() => {
                   if (!this.checkAuth()) return;
@@ -372,11 +423,13 @@ struct PostDetailView {
             if (this.postData.images && this.postData.images.length > 0) {
               Swiper() {
                 ForEach(this.postData.images, (img: string | Resource) => {
-                  Image(img)
-                    .width('100%').height('auto').objectFit(ImageFit.Contain)
+                  Image(this.getImageSrc(img))
+                    .width('100%')
+                    .height('auto')
+                    .objectFit(ImageFit.Contain)
                     .backgroundColor('#F1F3F5')
                     .onClick(() => {
-                      this.currentPreviewImg = img;
+                      this.currentPreviewImg = this.getImageSrc(img);
                       this.showBigImage = true;
                     })
                 })
@@ -399,7 +452,7 @@ struct PostDetailView {
               } else {
                 ForEach(this.postData.comments, (comment: CommentItem, index: number) => {
                   Row() {
-                    Image(comment.avatar || $r('app.media.start'))
+                    Image(getSafeAvatar(comment.avatar))
                       .width(32).height(32).borderRadius(16)
 
                     Column() {

@@ -1,5 +1,5 @@
 import { relationalStore } from '@kit.ArkData';
-import { PostItem, UserInfo } from '../models/PostItem';
+import { PostItem} from '../models/PostItem';
 
 export interface MessageNotification {
   id: string;
@@ -15,27 +15,16 @@ export interface MessageNotification {
 export class PostRepository {
   private store: relationalStore.RdbStore | null = null;
 
-  private generateCustomId(): string {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let result = 'DG';
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    result += Date.now().toString().slice(-4);
-    return result;
-  }
-
   async init(context: Context) {
     if (this.store) return;
 
     const CONFIG: relationalStore.StoreConfig = {
-      name: 'DomainGo_2.db',
+      name: 'DomainGo_3.db',
       securityLevel: relationalStore.SecurityLevel.S1
     };
 
     this.store = await relationalStore.getRdbStore(context, CONFIG);
 
-    // USERS 表保留（帖子 LEFT JOIN 需要）
     await this.store.executeSql(`
       CREATE TABLE IF NOT EXISTS USERS (
         ID TEXT PRIMARY KEY,
@@ -54,6 +43,7 @@ export class PostRepository {
         TIMESTAMP INTEGER,
         LOCATION TEXT,
         IMAGES TEXT,
+        COMMENTS TEXT,
         IS_LIKED INTEGER,
         LIKE_COUNT INTEGER,
         IS_COLLECTED INTEGER,
@@ -75,10 +65,6 @@ export class PostRepository {
         IS_READ INTEGER
       )`);
   }
-
-  // ============================
-  // 通知系统（完整保留）
-  // ============================
 
   async sendNotification(receiverId: string, senderId: string, senderName: string, senderAvatar: string, type: string, content: string) {
     if (!this.store || receiverId === senderId) return;
@@ -153,10 +139,6 @@ export class PostRepository {
     await this.store.update({ 'IS_READ': 1 }, predicates);
   }
 
-  // ============================
-  // 帖子系统（完整保留）
-  // ============================
-
   async insertPost(post: PostItem, userId: string) {
     if (!this.store) throw new Error('DB_NOT_INIT');
 
@@ -171,7 +153,10 @@ export class PostRepository {
       'IS_LIKED': post.isLiked ? 1 : 0,
       'LIKE_COUNT': post.likeCount,
       'IS_COLLECTED': post.isCollected ? 1 : 0,
-      'TAGS': JSON.stringify(post.tags || [])
+      'TAGS': JSON.stringify(post.tags || []),
+      'COMMENTS': JSON.stringify(post.comments || []),
+      'LIKE_IDS': JSON.stringify(post.likeUserIds || []),
+      'COLLECT_IDS': JSON.stringify(post.collectUserIds || [])
     };
 
     await this.store.insert('POSTS', bucket);
@@ -195,6 +180,7 @@ export class PostRepository {
     let bucket: relationalStore.ValuesBucket = {
       'TEXT_CONTENT': post.text,
       'IMAGES': JSON.stringify(post.images),
+      'COMMENTS': JSON.stringify(post.comments || []),
       'IS_LIKED': post.isLiked ? 1 : 0,
       'LIKE_COUNT': post.likeCount,
       'IS_COLLECTED': post.isCollected ? 1 : 0,
@@ -250,9 +236,9 @@ export class PostRepository {
         isLiked: resultSet.getLong(resultSet.getColumnIndex('IS_LIKED')) === 1,
         likeCount: resultSet.getLong(resultSet.getColumnIndex('LIKE_COUNT')),
         isCollected: resultSet.getLong(resultSet.getColumnIndex('IS_COLLECTED')) === 1,
-        comments: [],
-        likeUserIds: [],
-        collectUserIds: []
+        comments: JSON.parse(resultSet.getString(resultSet.getColumnIndex('COMMENTS')) || '[]'),
+        likeUserIds: JSON.parse(resultSet.getString(resultSet.getColumnIndex('LIKE_IDS')) || '[]'),
+        collectUserIds: JSON.parse(resultSet.getString(resultSet.getColumnIndex('COLLECT_IDS')) || '[]'),
       });
     }
 

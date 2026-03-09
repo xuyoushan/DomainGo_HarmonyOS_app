@@ -34,8 +34,22 @@ struct MessageCenterView {
   async refreshMessages() {
     if (this.currentUserId) {
       const myMsgs = await postRepo.getMyNotifications(this.currentUserId);
-      this.unreadMessages = myMsgs;
-      AppStorage.setOrCreate('unreadMessages', myMsgs);
+      this.unreadMessages = myMsgs.map((m: MessageNotification) => {
+        const newMsg: MessageNotification = {
+          id: m.id,
+          type: m.type,
+          fromUserName: m.fromUserName,
+          fromAvatar: typeof m.fromAvatar === 'string'
+            ? m.fromAvatar
+            : $r('app.media.start'),
+          targetContent: m.targetContent,
+          timestamp: m.timestamp,
+          isRead: m.isRead,
+          receiverId: m.receiverId
+        };
+        return newMsg;
+      });
+      AppStorage.setOrCreate('unreadMessages', this.unreadMessages);
     }
   }
 

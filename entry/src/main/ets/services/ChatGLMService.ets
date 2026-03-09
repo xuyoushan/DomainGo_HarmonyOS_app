@@ -17,7 +17,7 @@ export type ChatMode = 'guide' | 'copywriting' | 'casual' | 'dating';
 
 export class ChatGLMService {
 
-  // 1. 【关键修改】：替换为您的阿里云 FC 函数域名
+// FC 函数域名
   private static readonly API_URL = 'https://glm-elehjiqibg.cn-hangzhou.fcapp.run/api/chat';
   private static chatHistory: ChatMessage[] = [];
   private static currentMode: ChatMode | null = null;
@@ -167,17 +167,14 @@ ${weatherRule}
     try {
       console.info('正在发送AI请求到: ' + ChatGLMService.API_URL);
 
-      // 发起 HTTP POST 请求
       let response = await httpRequest.request(ChatGLMService.API_URL, {
         method: http.RequestMethod.POST,
         header: {
           'Content-Type': 'application/json',
-          // 不需要 Authorization 头，后端已处理
         },
         connectTimeout: 30000,
-        readTimeout: 60000, // 建议延长大模型响应时间
+        readTimeout: 60000,
         extraData: {
-          // 后端 Express 代码只需要 messages 数组
           "messages": ChatGLMService.chatHistory
         }
       });

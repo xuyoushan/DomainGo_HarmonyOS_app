@@ -4,7 +4,6 @@ import { PreferenceManager } from '../../../services/PreferenceManager';
 import promptAction from '@ohos.promptAction';
 import { photoAccessHelper } from '@kit.MediaLibraryKit'
 import { PostItem } from '../../../models/PostItem';
-import { userRepo } from '../../../services/UserRepository';
 import { http } from '@kit.NetworkKit';
 const BASE_URL = 'https://login-inchnzmmux.cn-hangzhou.fcapp.run';
 const pwdReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
@@ -309,7 +308,6 @@ struct SettingsPage {
                   .fontWeight(FontWeight.Medium)
                   .enabled(!this.isChecking)
                   .onClick(async () => {
-                    // 1. 用户名校验
                     if (!this.validateUsername(this.tempName)) {
                       promptAction.showToast({ message: '用户名不合规 (1-16位中英文数字下划线)' });
                       return;
@@ -365,8 +363,8 @@ struct SettingsPage {
                       if (res.index === 1) {
                         promptAction.showDialog({
                           title: '最终确认 (2/2)',
-                          message: '最后一次后悔的机会，确定删除吗？',
-                          buttons: [{ text: '我再想想', color: '#000' }, { text: '确定删除', color: '#FF4D4F' }]
+                          message: '最后一次后悔的机会，确定注销吗？',
+                          buttons: [{ text: '我再想想', color: '#000' }, { text: '确定注销', color: '#FF4D4F' }]
                         }).then(async (final) => {
                           if (final.index === 1) {
                             const ok = await this.deleteAccount();

@@ -54,14 +54,26 @@ struct PostDynamicView {
     if (params && params.editData) {
       const editPost = params.editData as PostItem;
       this.postText = editPost.text;
-      this.selectedImages = [...editPost.images] as string[];
+      this.selectedImages = (editPost.images || []).map((img: string | Resource) => {
+        if (typeof img === 'string') {
+          if (img.startsWith('file://') || img.startsWith('http') || img.startsWith('resource://')) {
+            return img;
+          }
+          return 'file://' + img;
+        }
+        return '';
+      });
       this.selectedLocation = editPost.location;
-    }
-    else {
+    } else {
       const draft = AppStorage.get<PostDraft>('post_draft_full');
       if (draft) {
         this.postText = draft.text;
-        this.selectedImages = draft.images as string[];
+        this.selectedImages = (draft.images || []).map(img => {
+          if (typeof img === 'string') {
+            return img.startsWith('file://') ? img : 'file://' + img;
+          }
+          return '';
+        });
       }
     }
     this.syncState();
@@ -86,7 +98,6 @@ struct PostDynamicView {
       let file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
       fs.copyFileSync(file.fd, destPath);
       fs.closeSync(file);
-
       return destPath;
     } catch (e) {
       console.error('DistCopyError: ' + JSON.stringify(e));
@@ -134,12 +145,14 @@ struct PostDynamicView {
       if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
         for (let uri of photoSelectResult.photoUris) {
           const distPath = await this.copyToDist(uri);
-          this.selectedImages.push(distPath);
+          const finalPath = distPath.startsWith('file://') ? distPath : 'file://' + distPath;
+          this.selectedImages.push(finalPath);
         }
         this.selectedImages = [...this.selectedImages];
         this.syncState();
       }
     } catch (err) {
+      console.error('SelectImagesError: ' + JSON.stringify(err));
       promptAction.showToast({ message: '选择图片失败' });
     }
   }
@@ -264,7 +277,8 @@ struct PostDynamicView {
                 };
 
                 await postRepo.insertPost(newPost, uid);
-
+                let currentList = AppStorage.get<PostItem[]>('globalPostList') || [];
+                AppStorage.setOrCreate('globalPostList', [newPost, ...currentList]);
                 AppStorage.setOrCreate('needsRefreshPosts', Date.now());
 
                 AppStorage.delete('post_draft_full');
@@ -306,7 +320,7 @@ struct PostDynamicView {
               ForEach(this.selectedImages, (path: string, index: number) => {
                 GridItem() {
                   Stack({ alignContent: Alignment.TopEnd }) {
-                    Image(path.startsWith('file://') ? path : 'file://' + path)
+                    Image(path)
                       .width('100%').height(100).borderRadius(8).objectFit(ImageFit.Cover)
                     if (index === 0) {
                       Text('封面').fontSize(10).fontColor(Color.White).backgroundColor('#007DFF')

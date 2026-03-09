@@ -1,10 +1,11 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
-import { PostItem, CommentItem } from '../../models/PostItem';
+import { PostItem} from '../../models/PostItem';
 import { postRepo } from '../../services/PostRepository';
 import { PreferenceManager } from '../../services/PreferenceManager';
 import { common } from '@kit.AbilityKit';
 import { CloudUser, userRepo } from '../../services/UserRepository';
+import { getSafeAvatar } from '../../utils/ImageUtils';
 
 interface MessageNotification {
   id: string;
@@ -32,8 +33,8 @@ export struct CircleView {
   @State currentPreviewImg: ResourceStr = '';
   @State searchKey: string = '';
   @State timeRefreshTicker: number = 0;
-  private timerId: number = -1;
 
+  private timerId: number = -1;
   private controller: TabsController = new TabsController();
 
   onRefreshSignal() {
@@ -47,6 +48,14 @@ export struct CircleView {
       return;
     }
     action();
+  }
+
+  normalizeImagePath(img: string | Resource): string | Resource {
+    if (typeof img !== 'string') return img;
+    if (img.startsWith('file://') || img.startsWith('http') || img.startsWith('resource://')) {
+      return img;
+    }
+    return 'file://' + img;
   }
 
   async sendNotification(post: PostItem | null, type: string, targetUserId: string = ''){
@@ -109,6 +118,13 @@ export struct CircleView {
 
   async aboutToAppear(): Promise<void> {
     await postRepo.init(getContext(this));
+    const context = getContext(this) as common.UIAbilityContext;
+    const cached = await PreferenceManager.get(context, 'globalPostList', '[]');
+    if (cached && cached !== '[]') {
+      const localData = JSON.parse(cached as string) as PostItem[];
+      this.globalPosts = localData;
+      AppStorage.setOrCreate('globalPostList', localData);
+    }
     this.refreshData();
     this.timerId = setInterval(() => {
       this.timeRefreshTicker++;
@@ -149,7 +165,6 @@ export struct CircleView {
     try {
       if (this.isLoggedIn && this.currentUserId) {
         const latestUser: CloudUser | null = await userRepo.getUserById(this.currentUserId);
-
         if (latestUser) {
           AppStorage.setOrCreate('userName', latestUser.username);
           AppStorage.setOrCreate('userAvatar', latestUser.avatar);
@@ -162,12 +177,18 @@ export struct CircleView {
         if (p.avatar === 'app.media.start' || p.avatar === '' || !p.avatar) {
           p.avatar = $r('app.media.start');
         }
+        if (p.images && p.images.length > 0) {
+          p.images = p.images.map(img => this.normalizeImagePath(img));
+        }
         return p;
       });
 
-      this.globalPosts = newList;
+      this.globalPosts = [...newList];
       AppStorage.setOrCreate('globalPostList', [...newList]);
 
+      const context = getContext(this) as common.UIAbilityContext;
+      await PreferenceManager.put(context, 'globalPostList', JSON.stringify(newList));
+      this.timeRefreshTicker++;
     } catch (e) {
       console.error("Refresh_Data_Error");
     } finally {
@@ -205,11 +226,11 @@ export struct CircleView {
 
       updatedPost.likeUserIds = [...ids];
 
-      this.globalPosts = [
-        ...this.globalPosts.slice(0, index),
-        updatedPost,
-        ...this.globalPosts.slice(index + 1)
-      ];
+      this.globalPosts[index] = updatedPost;
+      this.globalPosts = [...this.globalPosts];
+      const context = getContext(this) as common.UIAbilityContext;
+      await PreferenceManager.put(context, 'globalPostList', JSON.stringify(this.globalPosts));
+
       AppStorage.setOrCreate('globalPostList', this.globalPosts);
       await postRepo.updatePostStatus(
         updatedPost.id,
@@ -245,11 +266,10 @@ export struct CircleView {
 
       updatedPost.collectUserIds = [...collectIds];
 
-      this.globalPosts = [
-        ...this.globalPosts.slice(0, index),
-        updatedPost,
-        ...this.globalPosts.slice(index + 1)
-      ];
+      this.globalPosts[index] = updatedPost;
+      this.globalPosts = [...this.globalPosts];
+      const context = getContext(this) as common.UIAbilityContext;
+      await PreferenceManager.put(context, 'globalPostList', JSON.stringify(this.globalPosts));
 
       AppStorage.setOrCreate('globalPostList', this.globalPosts);
 
@@ -364,7 +384,7 @@ export struct CircleView {
               this.SocialCard(item)
             }
           },
-          (item: PostItem) => item.id
+          (item: PostItem) => item.id+ this.timeRefreshTicker.toString()
         )
         if (this.currentIndex === 0 && this.globalPosts.filter(p => this.followingList.includes(p.userId)).length === 0) {
           ListItem() {
@@ -414,7 +434,7 @@ export struct CircleView {
           isCollected: false,
           comments: []
         };
-        router.pushUrl({ url: 'pages/circle/PostDetailView', params: { postData: data } })
+        router.pushUrl({ url: 'pages/circle/PostDetailView', params: { postId: data.id } })
       })
     }
     .backgroundColor('#FFFFFF').borderRadius(16).margin({ left: 12, right: 12, top: 5, bottom: 5 })
@@ -423,7 +443,7 @@ export struct CircleView {
   @Builder SocialCard(data: PostItem) {
     Column() {
       Row() {
-        Image(this.getSafeAvatar(data))
+        Image(getSafeAvatar(data.avatar))
           .width(44)
           .height(44)
           .borderRadius(22)
@@ -481,14 +501,14 @@ export struct CircleView {
       .padding({ left: 15, right: 15, top: 12, bottom: 10 })
 
       if (data.images && data.images.length > 0) {
-        Image(data.images[0])
+        Image(this.normalizeImagePath(data.images[0]))
           .width('100%')
           .height(260)
           .objectFit(ImageFit.Cover)
           .margin({ bottom: 10 })
           .onClick(() => {
-            this.currentPreviewImg = data.images[0]
-            this.showBigImage = true
+            this.currentPreviewImg = this.normalizeImagePath(data.images[0]) as ResourceStr;
+            this.showBigImage = true;
           })
       }
 

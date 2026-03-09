@@ -42,7 +42,7 @@
     },
     {
       "name": "schedule_widget_desc",
-      "value": "在桌面卡片上查看并管理您近期的行程。"
+      "value": "查看并管理您的近期行程。"
     },
     {
       "name": "schedule_widget_display_name",
@@ -55,6 +55,10 @@
     {
       "name": "card_list_content",
       "value": "Introduction"
+    },
+    {
+      "name": "distributed_reason",
+      "value": "Distributed data sync for cross-device file access"
     }
   ]
 }
